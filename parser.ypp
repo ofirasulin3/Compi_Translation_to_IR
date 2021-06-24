@@ -1,0 +1,592 @@
+%{
+#include <iostream>
+#include <stdlib.h>
+#include "hw3_output.hpp"
+#include "SymbolTable.h"
+#define YYSTYPE Node*
+
+
+using namespace output;
+using namespace std;
+int yyerror(const char * message);
+
+extern int yylineno;
+extern char* yytext;
+extern unsigned int yyleng;
+extern int yylex();
+
+SymbolTable * symbolTable = new SymbolTable();
+
+%}
+
+
+%token VOID
+%token INT
+%token BYTE
+%token B
+%token BOOL
+%token TRUE
+%token FALSE
+%token RETURN
+%nonassoc IF
+%nonassoc ELSE
+%token WHILE
+%token BREAK
+%token CONTINUE
+%token SWITCH
+%token CASE
+%token DEFAULT
+%token COLON
+%token SC
+%token COMMA
+%token NUM
+%token STRING
+%token ID
+%right ASSIGN
+%left OR
+%left AND
+%left RELOPEQ
+%nonassoc RELOPREL
+%left BINOPPLUS
+%left BINOPMUL
+%left NOT
+%left RPAREN
+%left LPAREN
+%token LBRACE
+%token RBRACE
+
+%%
+
+
+Program : Funcs 																	{
+																					//printf("\n Done!\n");
+
+																					$$ = new Program();
+
+																					};
+
+Funcs :   																            {//printf("Funcs :   \n");
+                                                                                    $$ = new Funcs();};
+Funcs : FuncDecl Funcs  														    {//printf("Funcs : FuncDecl Funcs\n");
+                                                                                    $$ = new Funcs();
+                                                                                    };
+FuncDecl : RetType ID LPAREN Formals RPAREN                                         {    RetType* tmp1 = (RetType*) $1;
+                                                                                         Node * tmp2 = (Node*) $2;
+                                                                                         Formals * tmp4 = (Formals*) $4;
+                                                                                         //creating a new funcDeclaration object to insert into the funcs list
+                                                                                         funcDeclaration * toInsert = new funcDeclaration(tmp2->info.c_str(), tmp4->FormalDeclarationsList.formalsListDec,tmp1->retType.c_str());
+                                                                                         int duplicateIndex;
+
+                                                                                         //checking if exists, and return "identifier already exists error"
+
+                                                                                        for(int i = 0; i<tmp4->FormalDeclarationsList.formalsListDec.size(); i++)
+                                                                                        {
+                                                                                            string funcName = string(tmp2->info.c_str());
+                                                                                            if(tmp4->FormalDeclarationsList.formalsListDec[i].name.compare(funcName)==0)
+                                                                                            {
+                                                                                                errorDef(yylineno, tmp4->FormalDeclarationsList.formalsListDec[i].name);
+                                                                                                exit(0);
+                                                                                            }
+
+                                                                                            if(symbolTable->isFuncExistsByNameStr(tmp4->FormalDeclarationsList.formalsListDec[i].name))
+                                                                                            {
+                                                                                                errorDef(yylineno, tmp4->FormalDeclarationsList.formalsListDec[i].name);
+                                                                                                exit(0);
+                                                                                            }
+
+                                                                                        }
+
+                                                                                         if(symbolTable->isFuncExistsByName(*toInsert) )
+                                                                                         {
+                                                                                             errorDef(yylineno, toInsert->funcName);
+                                                                                             exit(0);
+                                                                                             //printf("%s %s %d \n", "Id is: ", toInsert->funcName, 83);
+                                                                                         }
+                                                                                         //checking if there 2 arguments with the same name
+                                                                                         duplicateIndex = symbolTable->argDuplicateInFuncSig(*toInsert);
+
+                                                                                        if(duplicateIndex!= -1)
+                                                                                        {
+                                                                                             errorDef(yylineno, toInsert->paramList[duplicateIndex].name);
+                                                                                             exit(0);
+                                                                                             //printf("%s %s %d \n", "Id is: ", toInsert->funcName, 135);
+                                                                                        }
+                                                                                         //after making sure the function wasnt declared before, add it to the funcs list
+                                                                                         symbolTable->addFunc(*toInsert);
+
+                                                                                         //after making sure the function wasnt declared before, add it to the scopes table
+                                                                                         symbolTable->AddNewTable(tmp2->info.c_str());
+
+                                                                                         //after making sure the function wasnt declared before, add it to the funcs list
+                                                                                         for(int i = 0; i<toInsert->paramList.size(); i++)
+                                                                                         {
+                                                                                             Symbol arg = *(new Symbol(toInsert->paramList[i].name.c_str(), toInsert->paramList[i].type.c_str(), 0, true));
+                                                                                             symbolTable->addNewArg(arg);
+                                                                                         }
+                                                                                        //TODO: emit funcName and arguments
+                                                                                        //TODO: alloc local variables on stack
+                                                                                        //TODO: emit all parameters of functions with emitStoreWord
+                                                                                        }
+LBRACE Statements RBRACE                                                            {
+                                                                                       symbolTable->pop();
+                                                                                       //TODO: emit "ret type" according to the type
+                                                                                    };
+RetType : Type 																        {    Type * tmp1 = (Type*)$1;
+																					    $$ = new RetType(tmp1->type.c_str());};
+
+RetType : VOID 																        {//printf("RetType : VOID\n");
+                                                                                        $$ = new RetType("VOID");};
+Formals :  																            {//printf("Formals :\n");
+                                                                                        $$ = new Formals();};
+Formals : FormalsList 															    {//printf("Formals : FormalsList\n");
+                                                                                        $$ = new Formals((FormalsList*)$1);};
+FormalsList : FormalDecl       													    {//printf("FormalsList : FormalDecl\n");
+                                                                                        $$ = new FormalsList((formalDeclaration*)$1);};
+FormalsList : FormalDecl COMMA FormalsList 											{//printf("FormalsList : FormalDecl COMMA FormalsList \n");
+                                                                                        $$ = new FormalsList((formalDeclaration*)$1, (FormalsList*)$3);};
+FormalDecl : Type ID  																{//printf("FormalDecl : Type ID \n");
+                                                                                        $$ = new formalDeclaration(((Type*)$1)->type.c_str(), ((Node*)$2)->info.c_str(), yylineno);};
+Statements : Statement 															    {//printf("Statements : Statement 	\n");
+                                                                                        $$ = new statements();
+
+                                                                                        //TODO: go over nextList of $1 and backpatch to a label
+                                                                                        //TODO: pass $1 continueList and breakList to $$
+                                                                                        };
+Statements : Statements Statement  													{//printf("Statements : Statements Statement \n");
+                                                                                        $$ = new statements();
+                                                                                        //TODO: go over nextList of $1 and backpatch to a label
+                                                                                        //TODO: pass to $$ the continueList and breakList of $1 and $2 with merge
+                                                                                        };
+Statement : LBRACE   												{
+                                                                                    //printf("Statement : LBRACE Statements RBRACE\n");
+                                                                                    symbolTable->AddNewTable("BLOCK");}
+            Statements RBRACE                                                       {
+																					//this is after rbrace
+																					symbolTable->pop();
+																					$$ = new statement();
+                                                                                    //TODO: pass $3 continueList and breakList to $$
+																					};
+
+Statement : Type ID SC  															{//printf("Statement : Type ID SC \n");
+                                                                                     const char* id = ((Node*)$2)->info.c_str();
+                                                                                     Type * type = (Type*)$1;
+
+																					//Check if the a variable with the same ID was not declared on containing scope.
+
+																					if(symbolTable->isVarExists(id) || symbolTable->isFuncExistsByNameStr(string(id)))
+																					{
+																					errorDef(yylineno,((Node*)$2)->info);
+																					exit(0);
+																					}
+																					//Add to symbol table: Add this variable to the top table.
+																					Symbol arg = *(new Symbol(id, type->type.c_str(), 0, false));
+																					//create new arg object and insert to the *last* table on the symbol table.};
+																					symbolTable->addNewArg(arg);
+
+                                                                                    //$$ = new statement();
+                                                                                    //TODO: emitStoreWord with offset of $2
+
+};
+
+Statement : Type ID ASSIGN Exp SC
+{
+    //printf("Statement : Type ID ASSIGN Exp SC\n");
+    Exp * expression = (Exp*)$4;
+    Type * type = (Type*)$1;
+    const char* id = ((Node*)$2)->info.c_str();
+    //printf("1\n");
+    const char* l_type = type->type.c_str();
+    const char* r_type = expression->type.c_str();
+    //printf("r_type is: %s \n" , r_type);
+
+    Symbol arg = *(new Symbol(id, l_type, 0, false));
+
+    //Check if ID already exists in containing block. If yes - ERROR.
+    //Check if assign operator is legal. If no - ERROR.
+    //Add Arg to symbol table.
+
+    if(symbolTable->isVarExists(id) || symbolTable->isFuncExistsByNameStr(string(id)))
+    {
+        errorDef(yylineno,id);
+        exit(0);
+        //printf("%s %s %d \n", "Id is: ", id, 139);
+    }
+    //printf("2\n");
+
+    if(!symbolTable->isAssignLegal(l_type,r_type))
+    {
+        //printf("Inside If\n");
+        errorMismatch(yylineno);
+        exit(0);
+    }
+
+    if(symbolTable->addNewArg(arg) == -1)
+    {
+    //report ERROR
+
+        exit(0);
+    }
+
+    //TODO: bring here
+
+    $$ = new statement();
+    };
+
+Statement : ID ASSIGN Exp SC
+    {Exp * tmp = (Exp*)$3;
+
+    const char* id = ((Node*)$1)->info.c_str();
+    const char* r_type = tmp->type.c_str();
+
+    //Check if Id exists on containing scope. If not - return ERROR.
+    //Check if assign is legal. If not - return ERROR.
+    if(!symbolTable->isVarExists(id))
+    {
+        errorUndef(yylineno,((Node*)$1)->info);
+        exit(0);
+    }
+
+    const char* l_type = symbolTable->searchSymbolByName(id).Type.c_str();
+
+
+
+    if(!symbolTable->isAssignLegal(l_type,r_type))
+    {
+        errorMismatch(yylineno);
+    }
+    //TODO: bring here
+
+    $$ = new statement();};
+Statement : Call SC 															    {$$ = new statement();};
+Statement : RETURN SC    												    		{
+                                                                                    if(symbolTable->getLastFunc()->returnType.compare(string("VOID"))!=0)
+																					{
+																					    errorMismatch(yylineno);
+																					    exit(0);
+																					}
+																					//TODO: emit "ret void"
+																					$$ = new statement();};
+Statement : RETURN Exp SC  															{
+    const char* type = ((Exp*)$2)->type.c_str();
+    //Check if function return type is same as expression type - report ERROR
+    //if(symbolTable->getLastFunc()->returnType!=type)
+
+    //if(symbolTable->getLastFunc()->returnType.compare("VOID")==0 || symbolTable->getLastFunc()->returnType.compare(string(type))!=0)
+    if(symbolTable->getLastFunc()->returnType.compare("VOID")==0 || !symbolTable->isAssignLegal(symbolTable->getLastFunc()->returnType.c_str(),type))
+    {
+        errorMismatch(yylineno);
+        exit(0);
+    }
+    //TODO: take care of boolean logic bring here
+
+    $$ = new statement();};
+Statement: IfRule %prec IF
+
+{
+//TODO: pass to $$ nextList the merge of elseList of $1 and elseList
+//TODO: pass to $$ the continueList of $1
+//TODO: pass to $$ the breakList of $1
+
+$$ = new statement();};
+
+Statement : IfRule ELSE
+{
+symbolTable->AddNewTable("IF");
+//TODO: generate a label and backpatch to it
+}
+Statement						  												    {    symbolTable->pop();
+																					$$ = new statement();};
+IfRule : IF LPAREN Exp RPAREN
+{//open a block because of if statement
+
+    string type = ((Exp*)$3)->type;
+
+    if(type.compare("BOOL")!=0){
+        errorMismatch(yylineno);
+        exit(0);
+    }
+    symbolTable->AddNewTable("IF");
+}
+Statement
+{
+    //After Statement
+    symbolTable->pop();
+    $$ = new statement();
+};
+
+Statement : WHILE LPAREN Exp RPAREN 												{ string type = ((Exp*)$3)->type;
+
+																					if(type!="BOOL"){
+																					errorMismatch(yylineno);
+																					exit(0);
+																					}
+																					symbolTable->AddNewTable("WHILE");
+
+																					}
+Statement 																			{
+																					symbolTable->pop();
+																					$$ = new statement();};
+Statement : BREAK SC  																{ if (!symbolTable->isContainedByScopeType("WHILE") && !symbolTable->isContainedByScopeType("SWITCH")){
+																					errorUnexpectedBreak(yylineno);
+																					exit(0);
+																					}
+																					$$ = new statement();};
+Statement : CONTINUE SC 															{
+                                                                                    if (!symbolTable->isContainedByScopeType("WHILE")) {
+																					errorUnexpectedContinue(yylineno);
+																					exit(0);
+																					}
+																					$$ = new statement();};
+Statement : SWITCH LPAREN Exp RPAREN 												{ string type = ((Exp*)$3)->type;
+    //printf("SWITCH variable is: %s\n", ((Exp*)$3)->info.c_str());
+    if(!symbolTable->isVarExists(((Exp*)$3)->info.c_str())){
+        errorUndef(yylineno, ((Exp*)$3)->info);
+        exit(0);
+    }
+    symbolTable->AddNewTable("SWITCH");}
+LBRACE 																				{//symbolTable->AddNewTable("SWITCH");
+}
+CaseList RBRACE																		{
+//symbolTable->pop();
+    symbolTable->pop();
+    $$ = new statement();};
+
+
+Call : ID LPAREN ExpList RPAREN
+{
+    //Check if function was defined.
+    //Check if parameters are matching.
+    vector<string> paramTypes;
+    const char* funcName = ((Node*)$1)->info.c_str();
+    EXPlist * paramsToFunc = (EXPlist*)$3;
+
+    if(symbolTable->getFunction(funcName) == nullptr)
+    {
+       errorUndefFunc(yylineno, string(funcName));
+       exit(0);
+    }
+
+    for(int i = 0; i<(symbolTable->getFunction(funcName)->paramList).size();i++)
+    {
+       paramTypes.push_back((symbolTable->getFunction(funcName)->paramList)[i].type);
+    }
+
+    if(paramsToFunc->vectorOfExp.size() != (symbolTable->getFunction(funcName))->paramList.size())
+    {
+       errorPrototypeMismatch(yylineno, string(funcName), paramTypes);
+       exit(0);
+    }
+
+    for(int i = 0; i<(symbolTable->getFunction(funcName))->paramList.size(); i++)
+    {
+             string realFunctionParam = symbolTable->getFunction(funcName)->paramList[i].type;
+             string calledFunctionParam = paramsToFunc->vectorOfExp[i].type;
+
+             if(realFunctionParam.compare(calledFunctionParam) == 0 || (realFunctionParam.compare(string("INT"))==0 &&
+             calledFunctionParam.compare(string("BYTE"))==0))
+             {
+                continue;
+             }
+
+                errorPrototypeMismatch(yylineno, string(funcName), paramTypes);
+                exit (0);
+    }
+
+    $$ = new call(symbolTable->getFunction(funcName)->returnType.c_str(), symbolTable->getFunction(funcName)->funcName.c_str(), new EXPlist(*paramsToFunc));
+
+};
+
+
+Call : ID LPAREN RPAREN 														    {    //Check if function exists in DB
+    																				//Check parameters match
+    																				const char* funcName = $1->info.c_str();
+    																				vector<formalDeclaration> paramList;
+    																				funcDeclaration * newFunc = new funcDeclaration(funcName,paramList , " ");
+
+                                                                                     vector<string> paramTypes;
+
+
+                                                                                       funcDeclaration * f = symbolTable->getFunction(funcName);
+
+
+                                                                                        if(symbolTable->getFunction(funcName) == nullptr)
+                                                                                        {
+                                                                                           errorUndefFunc(yylineno, string(funcName));
+                                                                                           exit(0);
+                                                                                        }
+
+                                                                                         for(int i = 0; i<f->paramList.size();i++)
+                                                                                          {
+                                                                                           paramTypes.push_back(f->paramList[i].type);
+                                                                                          }
+
+    																				if(!symbolTable->isFuncExistsByName(*newFunc))
+    																				{
+    																				    errorUndefFunc(yylineno,((Node*)$1)->info);
+    																				    exit(0);
+																					}
+
+
+																					if(f->paramList.size()!=0)
+																					{
+                                                                                           errorPrototypeMismatch(yylineno, string(funcName), paramTypes);
+                                                                                           exit(0);
+																					}
+
+
+																					$$ = new call(symbolTable->getFunctionType(funcName), funcName);};
+ExpList : Exp  																        {$$ = new EXPlist((Exp*)$1);};
+ExpList : Exp COMMA ExpList 													    {$$ = new EXPlist((Exp*)$1,(EXPlist*)$3);};
+Type : INT  																 		{//printf("Type : INT \n");
+                                                                                         $$ = new Type("NA","INT");
+                                                                                    };
+Type : BYTE  																 		{//printf("Type : byte \n");
+                                                                                                        $$ = new Type("NA","BYTE");
+                                                                                    };
+Type : BOOL 																        {//printf("Type : bool \n");
+                                                                                                    $$ = new Type("NA","BOOL");
+                                                                                    };
+Exp : LPAREN Exp RPAREN 														    {
+                                                                                    $$ = new Exp("NA", ((Exp*)$2)->type.c_str());
+
+                                                                                    };
+Exp : Exp BINOPMUL Exp
+{
+string leftType = ((Exp*)$1)->type;
+    string rightType = ((Exp*)$3)->type;
+    if((leftType.compare("INT")!=0 && leftType.compare("BYTE")!=0) || (rightType.compare("INT")!=0 && rightType.compare("BYTE")!=0)){
+        errorMismatch(yylineno);
+        exit(0);
+    }
+    else{
+        string resultType;
+        if(leftType.compare("INT")==0 || rightType.compare("INT")==0)
+        {
+            resultType = "INT";
+        }
+        else
+        {
+            resultType = "BYTE";
+        }
+        $$ = new Exp("NA", resultType.c_str());
+    }};
+Exp : Exp BINOPPLUS Exp
+{string leftType = ((Exp*)$1)->type;
+    string rightType = ((Exp*)$3)->type;
+    if((leftType.compare("INT")!=0 && leftType.compare("BYTE")!=0) || (rightType.compare("INT")!=0 && rightType.compare("BYTE")!=0)){
+        errorMismatch(yylineno);
+        exit(0);
+    }
+    else{
+        string resultType;
+       if(leftType.compare("INT")==0 || rightType.compare("INT")==0){
+            resultType = "INT";
+       }
+        else{
+            resultType = "BYTE";
+        }
+        $$ = new Exp("NA", resultType.c_str());
+    }
+};
+Exp : ID  																            {
+if(!symbolTable->isVarExists(((Node*)$1)->info.c_str()))
+    {
+        errorUndef(yylineno,((Node*)$1)->info);
+        exit(0);
+    }
+
+    string info = ((Node*)$1)->info;
+
+    Symbol symbol = symbolTable->searchSymbolByName(info.c_str());
+
+    string type = symbol.Type;
+    //printf("type is: %s\n", type.c_str());
+    $$ = new Exp(info.c_str(), type.c_str());
+};
+Exp : Call 																            {$$ = new Exp("NA", ((call*)$1)->type.c_str());};
+Exp : NUM  																            {$$ = new Exp("NA", "INT");};
+Exp : NUM B   																		{  int maxVal = 255;
+    if(stoi(((Node*)$1)->info) > maxVal)
+    {
+        errorByteTooLarge(yylineno,((Node*)$1)->info);
+        exit(0);
+    }
+    $$ = new Exp("NA", "BYTE");
+    };
+Exp : STRING  																		{$$ = new Exp(((Exp*)$1)->info.c_str(), "STRING");};
+Exp : TRUE    																		{$$ = new Exp(((Exp*)$1)->info.c_str(), "BOOL");};
+Exp : FALSE   																		{$$ = new Exp(((Exp*)$1)->info.c_str(), "BOOL");};
+Exp : NOT Exp 																		{
+    Exp* tmp = (Exp*)$2;
+    if(tmp->type.compare(*(new string("BOOL")))==0)
+    {
+        $$ = new Exp("NA","BOOL");
+    }
+    else
+    {
+        errorMismatch(yylineno);
+        exit(0);
+    }};
+Exp : Exp AND Exp  																    {
+string leftType = ((Exp*)$1)->type;
+    string rightType = ((Exp*)$3)->type;
+    if(leftType.compare("BOOL")!=0 || rightType.compare("BOOL")!=0){
+        errorMismatch(yylineno);
+        exit(0);
+    }
+    $$ = new Exp("NA","BOOL");};
+Exp : Exp OR Exp   																    {
+string leftType = ((Exp*)$1)->type;
+    string rightType = ((Exp*)$3)->type;
+    if(leftType.compare("BOOL")!=0 || rightType.compare("BOOL")!=0){
+        errorMismatch(yylineno);
+        exit(0);
+    }
+    $$ = new Exp("NA","BOOL");};
+Exp : Exp RELOPREL Exp 																{string leftType = ((Exp*)$1)->type;
+    string rightType = ((Exp*)$3)->type;
+    if((leftType.compare("INT")!=0 && leftType.compare("BYTE")!=0) || (rightType.compare("INT")!=0 && rightType.compare("BYTE")!=0)){
+        errorMismatch(yylineno);
+        exit(0);
+    }
+    $$ = new Exp("NA","BOOL");};
+Exp : Exp RELOPEQ Exp 																{string leftType = ((Exp*)$1)->type;
+    string rightType = ((Exp*)$3)->type;
+    if((leftType.compare("INT")!=0 && leftType.compare("BYTE")!=0) || (rightType.compare("INT")!=0 && rightType.compare("BYTE")!=0)){
+        errorMismatch(yylineno);
+        exit(0);
+    }
+
+    $$ = new Exp("NA","BOOL");};
+CaseList : CaseDecl CaseList														{$$ = new CaseList();};
+ CaseList : CaseDecl																	{$$ = new CaseList();};
+ CaseList : DEFAULT COLON Statements													{$$ = new CaseList();};
+ CaseDecl : CASE NUM COLON Statements												{$$ = new CaseList();};
+
+
+%%
+
+
+int main (){
+    yyparse();
+    if(!symbolTable->isMainExist())
+    {
+        errorMainMissing();
+        exit(0);
+    }
+    symbolTable->printFuncs();
+
+};
+
+int yyerror(const char * message){
+    errorSyn(yylineno);
+    exit(0);
+}
+
+
+
+
+
+
+
+
