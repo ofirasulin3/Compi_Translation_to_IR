@@ -7,8 +7,36 @@
 #include <string>
 #include <vector>
 #include "hw3_output.h"
+#include "bp.h"
+
+#define bpList vector<pair<int,BranchLabelIndex>>
 
 using namespace std;
+
+class lists
+{
+public:
+    bpList * continue_list;
+    bpList * true_list;
+    bpList * next_list;
+    bpList * false_list;
+    bpList * else_list;
+    bpList * break_list;
+    bpList * case_list;
+    bpList * label_list;
+
+    lists()
+    {
+        continue_list = nullptr;
+        true_list = nullptr;
+        next_list = nullptr;
+        false_list = nullptr;
+        else_list = nullptr;
+        break_list = nullptr;
+        case_list = nullptr;
+    }
+
+};
 
 class Node {
 public:
@@ -81,11 +109,13 @@ class Exp: public Node
 {
 public:
     string type;
+    lists * listCol;
 
-    explicit Exp(const char* data, const char* t_type)
+    explicit Exp(const char* data, const char* t_type, lists * l = nullptr)
     {
         info = *(new string(data));
         type = *(new string(t_type));
+        listCol = l;
     }
 
     Exp(const Exp & e)
@@ -102,10 +132,12 @@ class statement: public Node
 {
 public:
     string ID;
+    lists * listCol;
 
     statement(const char* id = "NA")
     {
         ID = id;
+        listCol = new lists();
     }
     string getData()
     {
@@ -117,6 +149,9 @@ public:
 class statements: public Node
 {
 public:
+    lists * listCol;
+
+
     statements() = default;
 
 //    statements()
@@ -143,14 +178,16 @@ class EXPlist : public Node
 {
 public:
     vector<Exp> vectorOfExp;
+    lists * listCol;
     EXPlist(Exp* exp, EXPlist* expList = NULL)
     {
         //info = *(new string(data));
         this->vectorOfExp.push_back(*exp);
+        listCol = new lists();
         if(expList!=NULL)
         {
-         //   this->vectorOfExp.insert(*exp);
-           // this->vectorOfExp.insert(expList->vectorOfExp.begin(), *exp);
+            //   this->vectorOfExp.insert(*exp);
+            // this->vectorOfExp.insert(expList->vectorOfExp.begin(), *exp);
             vector<Exp> vectorOfE = *(new vector<Exp>);
             vectorOfE.push_back(*exp);
             for(int i = 0; i<expList->vectorOfExp.size(); i++)
