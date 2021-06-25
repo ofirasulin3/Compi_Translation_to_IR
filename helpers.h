@@ -6,8 +6,8 @@
 #define COMPI_3_HELPERS_H
 #include <string>
 #include <vector>
-#include "hw3_output.h"
-#include "bp.h"
+#include "hw3_output.hpp"
+#include "bp.hpp"
 
 #define bpList vector<pair<int,BranchLabelIndex>>
 
@@ -109,17 +109,15 @@ class Exp: public Node
 {
 public:
     string type;
+    string rigister;
     lists * listCol;
-    string register_id;
-    string bpLabel;
 
-    explicit Exp(const char* data, const char* t_type, lists * l = nullptr, string register_id = "NA", string bpLabel)
+    explicit Exp(const char* data, const char* t_type, lists * l = nullptr, string reg = "NA")
     {
         info = *(new string(data));
         type = *(new string(t_type));
         listCol = l;
-        register_id = register_id;
-        bpLabel = bpLabel;
+        rigister = reg;
     }
 
     Exp(const Exp & e)
@@ -218,7 +216,6 @@ public:
     string type;
     string ID;
     bool hasList;
-    string register_id;
 
     //TODO: maybe need explicit?
     call(/*const char * data, */const char* t_type, const char* id, EXPlist* expList = NULL)

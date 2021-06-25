@@ -147,7 +147,7 @@ FormalsList : FormalDecl COMMA FormalsList 											{//printf("FormalsList : F
                                                                                         $$ = new FormalsList((formalDeclaration*)$1, (FormalsList*)$3);};
 FormalDecl : Type ID  																{//printf("FormalDecl : Type ID \n");
                                                                                         $$ = new formalDeclaration(((Type*)$1)->type.c_str(), ((Node*)$2)->info.c_str(), yylineno);};
-Statements : Statement
+Statements : Statement 															    
 {//printf("Statements : Statement 	\n");
     $$ = new statements();
     statement * tmpStatement = (statement*)$1;
@@ -164,7 +164,7 @@ Statements : Statement
     tmp2->listCol->continue_list = continue_list;
     tmp2->listCol->break_list = break_list;
 };
-Statements : Statements Statement
+Statements : Statements Statement  													
 {
 $$ = new statements();
     statement * tmpStatement2 = (statement*)$2;
@@ -290,7 +290,7 @@ Statement : RETURN SC    												    		{
 																					    exit(0);
 																					}
 																					$$ = new statement();};
-Statement : RETURN Exp SC
+Statement : RETURN Exp SC  															
 {
     const char* type = ((Exp*)$2)->type.c_str();
     //Check if function return type is same as expression type - report ERROR
@@ -302,7 +302,7 @@ Statement : RETURN Exp SC
         errorMismatch(yylineno);
         exit(0);
     }
-
+	
 	    Exp* tmp4 = (Exp*)$2;
 
     bool cond = (((Exp*)tmp4)->register_id.compare((string("NA"))) == 0) &&
@@ -335,7 +335,7 @@ Statement : RETURN Exp SC
         //add returnFromFunc() like barak did
 		finishFunctionScope(tmp4->info, tmp4->type, tmp4->register_id, symbolTable->getLastFunc()->returnType);
     }
-
+	
     $$ = new statement();
 };
 Statement: IfRule %prec IF
