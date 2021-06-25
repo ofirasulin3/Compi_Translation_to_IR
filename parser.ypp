@@ -305,7 +305,7 @@ Statement : RETURN Exp SC
 
 	    Exp* tmp4 = (Exp*)$2;
 
-    bool cond = (((Exp*)tmp4)->rigister.compare((string("NA"))) == 0) &&
+    bool cond = (((Exp*)tmp4)->register_id.compare((string("NA"))) == 0) &&
             (((Exp*)tmp4)->type.compare((string("BOOL"))) == 0);
 
     if(cond)
@@ -327,14 +327,13 @@ Statement : RETURN Exp SC
         tmp2 = returnSecondAppearance(tmp);
         tmp3 = returnThirdAppearance(tmp);
 
-        tmp4->rigister = tmp1;
+        tmp4->register_id = tmp1;
 
         CodeBuffer::instance().bpatch(*trueL, tmp2);
         CodeBuffer::instance().bpatch(*falseL, tmp3);
 
-        //TODO:
         //add returnFromFunc() like barak did
-		finishFunctionScope(tmp4->info, tmp4->type, tmp4->rigister, symbolTable->getLastFunc()->returnType);
+		finishFunctionScope(tmp4->info, tmp4->type, tmp4->register_id, symbolTable->getLastFunc()->returnType);
     }
 
     $$ = new statement();
