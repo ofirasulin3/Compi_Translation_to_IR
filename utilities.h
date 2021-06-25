@@ -30,6 +30,15 @@ void emitFuncRetType(const char* retType)
     }
 }
 
+bpList pushUncondBr(){
+    bpList listToHandle;
+//    string tmp = "br label @";
+//    int index = CodeBuffer::instance().emit(tmp);
+    int place = CodeBuffer::instance().emit("br label @");
+    listToHandle.push_back(pair<int, BranchLabelIndex>(place, FIRST));
+    return listToHandle;
+}
+
 const char* emitSW_sig(long long size, const char* type, const char* reg, long long offst)
 {
     string emit_this;
@@ -133,7 +142,7 @@ void emitSW(long long size, const char* type, const char* reg, long long offset)
     }
 
     //TODO: Add the following code.
-    CodeBuffer::instance().emit(tmp.c_str());
+    //CodeBuffer::instance().emit(tmp.str());
 }
 
 void funcHandler(const char* funcName, const char* retType, const vector<string>& listOfFormalDec)
@@ -160,7 +169,7 @@ void funcHandler(const char* funcName, const char* retType, const vector<string>
     }
     funcToEmit += "){\n";
 
-    //TODO: Add the following code:
+    //Add the following code:
     CodeBuffer::instance().emit(funcToEmit.c_str());
 
     funcLocalVars = "%ptr = alloca [50 x i32], i32 50\n%inputPtr = alloca [";

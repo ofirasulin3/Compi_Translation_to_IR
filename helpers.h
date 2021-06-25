@@ -109,15 +109,17 @@ class Exp: public Node
 {
 public:
     string type;
-    string rigister;
     lists * listCol;
+    string register_id;
+    string bpLabel;
 
-    explicit Exp(const char* data, const char* t_type, lists * l = nullptr, string reg = "NA")
+    explicit Exp(const char* data, const char* t_type, string bpLabel, lists * l = nullptr, string register_id = "NA")
     {
         info = *(new string(data));
         type = *(new string(t_type));
         listCol = l;
-        rigister = reg;
+        register_id = register_id;
+        bpLabel = bpLabel;
     }
 
     Exp(const Exp & e)
@@ -216,14 +218,15 @@ public:
     string type;
     string ID;
     bool hasList;
+    string register_id;
 
     //TODO: maybe need explicit?
-    call(/*const char * data, */const char* t_type, const char* id, EXPlist* expList = NULL)
+    call(/*const char * data, */const char* t_type, const char* id, string register_id, EXPlist* expList = NULL)
     {
         //info = *(new string(data));
         type = *(new string(t_type)); //return type of function
         ID = *(new string(id));//function name
-
+        register_id = register_id;
         if(expList)
         {
             this->expList = *expList;
