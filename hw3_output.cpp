@@ -1,5 +1,5 @@
 #include <iostream>
-#include "hw3_output.h"
+#include "hw3_output.hpp"
 #include <sstream>
 
 using namespace std;
