@@ -18,7 +18,7 @@ void emitFuncRetType(const char* retType)
 {
     if(string("VOID").compare(string(retType)) == 0)
     {
-        //TODO: Addthis -> CodeBuffer::instance().emit("ret void\n");
+        CodeBuffer::instance().emit("ret void\n");
     }
     else
     {
@@ -26,8 +26,17 @@ void emitFuncRetType(const char* retType)
         tmp += retType;
         tmp+= " 0\n";
         tmp+= "}";
-        //TODO: Addthis -> CodeBuffer::instance().emit("tmp");
+        CodeBuffer::instance().emit(tmp);
     }
+}
+
+bpList pushUncondBr(){
+    bpList listToHandle;
+//    string tmp = "br label @";
+//    int index = CodeBuffer::instance().emit(tmp);
+    int place = CodeBuffer::instance().emit("br label @");
+    listToHandle.push_back(pair<int, BranchLabelIndex>(place, FIRST));
+    return listToHandle;
 }
 
 const char* emitSW_sig(long long size, const char* type, const char* reg, long long offst)
@@ -112,7 +121,7 @@ const char* emitSW_local(long long size, const char* type, const char* reg, long
 }
 
 void emitSW(long long size, const char* type, const char* reg, long long offset)
-{
+    {
     string tmp;
 
     int offst_case = 1;
