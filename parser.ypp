@@ -332,7 +332,7 @@ Statement : RETURN Exp SC
         CodeBuffer::instance().bpatch(*trueL, tmp2);
         CodeBuffer::instance().bpatch(*falseL, tmp3);
 
-        //add returnFromFunc() like barak did
+
 		finishFunctionScope(tmp4->info, tmp4->type, tmp4->rigister, symbolTable->getLastFunc()->returnType);
     }
 	
