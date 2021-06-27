@@ -31,11 +31,11 @@ const char* rAlc()
     return tmp.c_str();
 }
 
-void emitICMPReg(string reg, string * regPtr){
+void emitICMPReg(string reg_info, string * regPtr){
     string register_info = rAlc();
-    *regptr = register_info;
+    *regPtr = register_info;
     register_info+= " = icmp eq i1 ";
-    register_info+= string(register_name);
+    register_info+= string(reg_info);
     register_info+= " ,1\n";
     CodeBuffer::instance().emit(register_info);
 }
@@ -43,19 +43,19 @@ void emitICMPReg(string reg, string * regPtr){
 void emitGVariableDecl(const char* info, char* ptr0, char* ptr1){
     string globalAllocation = "@.g";
     globalAllocation+= to_string(globalCount++);
-    ptr0 = globalAllocation.c_str();
+    ptr0 = globalAllocation.data();
     string stringToEmit = globalAllocation;
     stringToEmit+= " = constant [";
-    stringToEmit+= size;
+    stringToEmit+= to_string(string(info).size()-1);
     stringToEmit+= " x i8] c\"";
     stringToEmit+= string(info).substr(1, string(info).size()-1);
     stringToEmit+= "\\00\"\n";
     CodeBuffer::instance().emitGlobal(stringToEmit);
 
     string pointer1 = "[";
-    pointer1+= string(string(info).size());
+    pointer1+= to_string(string(info).size());
     pointer1+= " x i8]";
-    ptr1 = pointer1.c_str();
+    ptr1 = pointer1.data();
 }
 
 void handleLW(short offst, string type, short sSize, short isExistsOnStack, string * toRet)
@@ -152,7 +152,7 @@ void emitFuncRetType(const char* retType)
     }
 }
 
-bpList pushUncondBr(){
+bpList emitUncondBr(){
     bpList listToHandle;
     int place = CodeBuffer::instance().emit(string("br label @\n"));
     listToHandle.push_back(pair<int, BranchLabelIndex>(place, FIRST));
@@ -303,10 +303,10 @@ void funcHandler(const char* funcName, const char* retType, const vector<string>
 
     while(j<listOfFormalDec.size())
     {
-        char* c_rigister = "%";
-        string * s_rigister = new string (c_rigister);
-        *s_rigister += to_string(j);
-        emitSW(listOfFormalDec.size(), listOfFormalDec[j].c_str(), s_rigister->c_str(), -j);
+        char* c_register_id = "%";
+        string * s_register_id = new string (c_register_id);
+        *s_register_id += to_string(j);
+        emitSW(listOfFormalDec.size(), listOfFormalDec[j].c_str(), s_register_id->c_str(), -j);
     }
 
 }
@@ -360,15 +360,15 @@ void callFuncEmitHandler(const char* toRet, const char* funcId, const char* retT
        {
            if((*inputArr)[j].compare("INT") == 0) {
                (expArrTmp)[j].type = string("INT");
-                if(expArrTmp[j].rigister.compare("NA")!=0)
+                if(expArrTmp[j].register_id.compare("NA")!=0)
                 {
                     const char* rg = rAlc(); //toEmit
                     tmp += rg;
                     tmp += toEmit[4];
-                    tmp += expArrTmp[j].rigister.c_str();
+                    tmp += expArrTmp[j].register_id.c_str();
                     tmp += toEmit[4];
                     tmp += "\n";
-                    expArrTmp[j].rigister = rg;
+                    expArrTmp[j].register_id = rg;
                 }
            }
        }
@@ -391,7 +391,7 @@ void callFuncEmitHandler(const char* toRet, const char* funcId, const char* retT
 
     while(j<expArrTmp.size())
     {
-        if(expArrTmp[j].rigister.compare("NA"))
+        if(expArrTmp[j].register_id.compare("NA"))
         {
             tmp += expArrTmp[j].type.c_str();
             tmp += " ";
@@ -402,7 +402,7 @@ void callFuncEmitHandler(const char* toRet, const char* funcId, const char* retT
         {
             tmp += expArrTmp[j].type.c_str();
             tmp += " ";
-            tmp += expArrTmp[j].rigister;
+            tmp += expArrTmp[j].register_id;
             tmp += ", ";
         }
 
@@ -446,9 +446,9 @@ string handleBool()
 
     labels[2] = CodeBuffer::instance().genLabel().c_str(); //bpatch this
 
-    string rigister = rAlc();
+    string register_id = rAlc();
     string tmp;
-    tmp += rigister;
+    tmp += register_id;
     tmp+= toWrite[0];
     tmp+= labels[0];
     tmp += toWrite[1];
@@ -458,7 +458,7 @@ string handleBool()
 
     CodeBuffer::instance().bpatch(list, labels[2]);
 
-    toret = rigister;
+    toret = register_id;
     toret += '#';
     toret += labels[0];
     toret += '#';
@@ -530,25 +530,25 @@ string returnThirdAppearance(string s)
 }
 
 
-void finishFunctionScope(string info, string type, string rigister, string retTypeOfFunction)
+void finishFunctionScope(string info, string type, string register_id, string retTypeOfFunction)
 {
     string strStorage[4];
     bool cond = (type.compare(("BYTE")) == 0) &&(retTypeOfFunction.compare("INT") == 0);
 
     strStorage[2] = "= zext i8 ";
     strStorage[3] = " to i32\n";
-    long long caseVar = rigister.compare("NA") == 0 ? 1:0;
+    long long caseVar = register_id.compare("NA") == 0 ? 1:0;
     if(cond)
     {
         type = *(new string("INT"));
-        if (rigister.compare("NA") != 0)
+        if (register_id.compare("NA") != 0)
         {
             string retReg = rAlc();
             strStorage[0] = retReg;
             strStorage[0] += strStorage[2];
-            strStorage[0] += rigister;
+            strStorage[0] += register_id;
             strStorage[0] += strStorage[3];
-            rigister = *(new string(retReg.c_str()));
+            register_id = *(new string(retReg.c_str()));
         }
     }
 
@@ -559,7 +559,7 @@ void finishFunctionScope(string info, string type, string rigister, string retTy
             break;
 
         case 2:
-            strStorage[1] = rigister.c_str();
+            strStorage[1] = register_id.c_str();
             break;
     }
 

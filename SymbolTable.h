@@ -68,18 +68,14 @@ public:
     }
 
     void enterSymbolToStackVector(string symbolToCheckName){
-        symbolsOnStack.push_back(sy)
-        for(string symbolName : symbolsOnStack)
-            if(symbolName.compare(symbolToCheckName)==0)
-                return true;
-        return false;
+        symbolsOnStack.push_back(symbolToCheckName);
     }
 
     int symbolOffset(const char* id) {
-        //iterate over the 2d array of vectors, get the relevant
+    //iterate over the 2d array of vectors, get the relevant
         for (vector<Symbol> symbolsVector : variableTable)
             for (Symbol sym : symbolsVector)
-                if (sym.Name.compare(id.c_str()) == 0)
+                if (sym.Name.compare(id) == 0)
                     return sym.Offset;
         return INT32_MIN;
     }
@@ -88,7 +84,7 @@ public:
         //iterate over the 2d array of vectors, get the relevant
         for (vector<Symbol> symbolsVector : variableTable)
             for (Symbol sym : symbolsVector)
-                if (sym.Name.compare(id.c_str()) == 0)
+                if (sym.Name.compare(id) == 0)
                     return sym.Type;
         return "NA";
     }
