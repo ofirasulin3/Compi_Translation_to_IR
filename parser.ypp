@@ -187,8 +187,8 @@ Statement : Type ID SC  															{//printf("Statement : Type ID SC \n");
 																					symbolTable->addNewArg(arg);
 
                                                                                     //emitStoreWord with offset of $2
-                                                                                    int offset = symbolTable.symbolOffset(((Node*)$2)->data);
-                                                                                    emitSW(0, symbolTable.symbolType(((Node*)$2)->data), "0", offset);
+                                                                                    int offset = symbolTable.symbolOffset(((Node*)$2)->info);
+                                                                                    emitSW(0, symbolTable.symbolType(((Node*)$2)->info), "0", offset);
                                                                                     $$ = new statement();
 };
 
@@ -227,11 +227,28 @@ Statement : Type ID ASSIGN Exp SC
     if(symbolTable->addNewArg(arg) == -1)
     {
     //report ERROR
-
         exit(0);
     }
 
-    //TODO: bring here
+    if(((EXP*)$4)->type.compare("BOOL")==0 && ((EXP*)$4)->register_id.compare(string("NA"))==0){
+        CodeBuffer::instance().emit(string("unreachable\n"));
+        string data = handleBool();
+        ((EXP*)$4)->register_id = returnFirstAppearance(data);
+        true_list = returnSecondAppearance(data);
+        CodeBuffer::instance().bpatch(((EXP*)$4)->true_list, true_list);
+        false_list = returnThirdAppearance(data);
+        CodeBuffer::instance().bpatch(((EXP*)$4)->false_list, false_list);
+    }
+    //emitSW with offset of $2, if $4 (the expression to assign)
+    //register already exists, send its info
+    //otherwise send original info
+    int offset = symbolTable.symbolOffset(((Node*)$2)->info);
+    if (((EXP*)$4)->register_id.compare(string("NA"))!=0){
+        emitSW(0, ((EXP*)$4)->type, ((EXP*)$4)->register_id, offset);
+    }
+    else{
+        emitSW(0, ((EXP*)$4)->type, ((EXP*)$4)->info, offset);
+    }
 
     $$ = new statement();
     };
@@ -241,7 +258,6 @@ Statement : ID ASSIGN Exp SC
 
     const char* id = ((Node*)$1)->info.c_str();
     const char* r_type = tmp->type.c_str();
-
     //Check if Id exists on containing scope. If not - return ERROR.
     //Check if assign is legal. If not - return ERROR.
     if(!symbolTable->isVarExists(id))
@@ -252,15 +268,35 @@ Statement : ID ASSIGN Exp SC
 
     const char* l_type = symbolTable->searchSymbolByName(id).Type.c_str();
 
-
-
     if(!symbolTable->isAssignLegal(l_type,r_type))
     {
         errorMismatch(yylineno);
     }
-    //TODO: bring here
 
-    $$ = new statement();};
+    if(((EXP*)$3)->type.compare("BOOL")==0 && ((EXP*)$3)->register_id.compare(string("NA"))==0){
+        CodeBuffer::instance().emit(string("unreachable\n"));
+        string data = handleBool();
+        ((EXP*)$3)->register_id = returnFirstAppearance(data);
+        true_list = returnSecondAppearance(data);
+        CodeBuffer::instance().bpatch(((EXP*)$3)->true_list, true_list);
+        false_list = returnThirdAppearance(data);
+        CodeBuffer::instance().bpatch(((EXP*)$3)->false_list, false_list);
+    }
+    //emitSW with offset, if exp (the expression to assign)
+    //register already exists, send its info
+    //otherwise send original info
+    int offset = symbolTable.symbolOffset(((Node*)$2)->info);
+    symbolTable.enterSymbolToStackVector();
+    if (((EXP*)$3)->register_id.compare(string("NA"))!=0){
+        emitSW(0, ((EXP*)$3)->type, ((EXP*)$3)->register_id, offset, symbolTable->symbolsOnStack.size());
+    }
+    else{
+        emitSW(0, ((EXP*)$3)->type, ((EXP*)$3)->info, offset, symbolTable->symbolsOnStack.size());
+    }
+    string symbolName = symbolTable->searchSymbolByName(id).Name;
+    symbolTable.enterSymbolToStackVector(symbolName);
+    $$ = new statement();
+    };
 Statement : Call SC 															    {$$ = new statement();};
 Statement : RETURN SC    												    		{
                                                                                     if(symbolTable->getLastFunc()->returnType.compare(string("VOID"))!=0)
@@ -404,7 +440,14 @@ Call : ID LPAREN ExpList RPAREN
     }
 
     $$ = new call(symbolTable->getFunction(funcName)->returnType.c_str(), symbolTable->getFunction(funcName)->funcName.c_str(), new EXPlist(*paramsToFunc));
-
+    string bpLabel = CodeBuffer::instance().genLabel();
+    CodeBuffer::instance().bpatch(((EXPlist*)$3)->listCol->label_list, bpLabel);
+    CodeBuffer::instance().bpatch(emitUncondBr(), bpLabel);
+    string type = symbolTable->getFunctionType(funcName);
+    string reg = emitFunctionCall(((Node*)$1)->info, type,
+                &((Explist*)$3)->vectorOfExp,
+                (symbolTable->getFunction(funcName))->paramList);
+    ((call*)$$)->register_id = register_id;
 };
 
 
@@ -513,6 +556,11 @@ if(!symbolTable->isVarExists(((Node*)$1)->info.c_str()))
     string type = symbol.Type;
     //printf("type is: %s\n", type.c_str());
     $$ = new Exp(info.c_str(), type.c_str());
+
+    int offset = symbolTable.symbolOffset(((Node*)$1)->info);
+    string symbolName = symbolTable->searchSymbolByName(id).Name;
+    bool isExistsOnStack = symbolTable.symbolIsExistsOnStack(symbolName);
+    handleLW(offset, type, symbolTable->symbolsOnStack.size(), isExistsOnStack);
 };
 Exp : Call 																            {$$ = new Exp("NA", ((call*)$1)->type.c_str());
                                                                                     ((EXP*)$$)->register_id = ((call*)$1)->register_id;
@@ -526,7 +574,12 @@ Exp : NUM B   																		{  int maxVal = 255;
     }
     $$ = new Exp("NA", "BYTE");
     };
-Exp : STRING  																		{$$ = new Exp(((Exp*)$1)->info.c_str(), "STRING");};
+Exp : STRING
+{
+    $$ = new Exp(((Exp*)$1)->info.c_str(), "STRING");
+    ((EXP*)$$)->globalPtr = emitGVariableDecl(((EXP*)$$)->info, ((EXP*)$$)->ptr0, ((EXP*)$$)->ptr1);
+
+};
 Exp : TRUE    																		{$$ = new Exp(((Exp*)$1)->info.c_str(), "BOOL");
   																				    ((EXP*)$$)->ListCol->true_list = emitUncondBr();
   																					((EXP*)$$)->bpLabel = CodeBuffer::instance().genLabel();
@@ -547,22 +600,90 @@ Exp : NOT Exp 																		{
         errorMismatch(yylineno);
         exit(0);
     }};
-Exp : Exp AND Exp  																    {
-string leftType = ((Exp*)$1)->type;
-    string rightType = ((Exp*)$3)->type;
+Exp : Exp AND
+{
+    if (((EXP*)$1)->register_id.compare(string("NA"))!=0){
+        string * register_ptr;
+        emitICMPReg(((EXP*)$1)->register_id, register_ptr);
+        bpList * true_list = new bpList();
+        bpList * false_list = new bpList();
+        emitConditionalBranchSavedArg(*register_ptr, true_list, false_list);
+        ((EXP*)$1)->listCol->false_list = CodeBuffer::instance().merge(((EXP*)$1)->listCol->false_list , true_list);
+        ((EXP*)$1)->listCol->true_list = CodeBuffer::instance().merge(((EXP*)$1)->listCol->true_list, false_list);
+	}
+	string bpLabel = CodeBuffer::instance().genLabel();
+	CodeBuffer::instance().bpatch(((EXP*)$1)->listCol->true_list , label);
+	CodeBuffer::instance().bpatch(emitUncondBr(), bpLabel);
+
+}
+
+Exp
+{
+    string leftType = ((Exp*)$1)->type;
+    string rightType = ((Exp*)$4)->type;
     if(leftType.compare("BOOL")!=0 || rightType.compare("BOOL")!=0){
         errorMismatch(yylineno);
         exit(0);
     }
-    $$ = new Exp("NA","BOOL");};
-Exp : Exp OR Exp   																    {
+    $$ = new Exp("NA","BOOL");
+
+    if (((EXP*)$4)->register_id.compare(string("NA"))!=0){
+        string * register_ptr2;
+        emitICMPReg(((EXP*)$4)->register_id, register_ptr2);
+        bpList * true_list2 = new bpList();
+        bpList * false_list2 = new bpList();
+        emitConditionalBranchSavedArg(*register_ptr2, true_list2, false_list2);
+        ((EXP*)$4)->listCol->false_list = CodeBuffer::instance().merge(((EXP*)$4)->listCol->false_list, false_list2);
+        ((EXP*)$4)->listCol->true_list = CodeBuffer::instance().merge(((EXP*)$4)->listCol->true_list, true_list2);
+	}
+	bpList * false_list3 = CodeBuffer::instance().merge(((EXP*)$1)->listCol->false_list, ((EXP*)$4)->listCol->false_list);
+    ((EXP*)$$)->listCol->false_list = false_list3;
+    ((EXP*)$$)->listCol->true_list = ((EXP*)$4)->listCol->true_list;
+    ((EXP*)$$)->bpLabel = ((EXP*)$4)->bpLabel;
+};
+
+
+Exp : Exp OR
+{
+    if (((EXP*)$1)->register_id.compare(string("NA"))!=0){
+        string * register_ptr;
+        emitICMPReg(((EXP*)$1)->register_id, register_ptr);
+        bpList * true_list = new bpList();
+        bpList * false_list = new bpList();
+        emitConditionalBranchSavedArg(*register_ptr, true_list, false_list);
+        ((EXP*)$1)->listCol->false_list = CodeBuffer::instance().merge(((EXP*)$1)->listCol->false_list , false_list);
+        ((EXP*)$1)->listCol->true_list = CodeBuffer::instance().merge(((EXP*)$1)->listCol->true_list, true_list);
+	}
+	string bpLabel = CodeBuffer::instance().genLabel();
+	CodeBuffer::instance().bpatch(((EXP*)$1)->listCol->false_list , label);
+	CodeBuffer::instance().bpatch(emitUncondBr(), bpLabel);
+
+}
+
+Exp   																    {
 string leftType = ((Exp*)$1)->type;
-    string rightType = ((Exp*)$3)->type;
+    string rightType = ((Exp*)$4)->type;
     if(leftType.compare("BOOL")!=0 || rightType.compare("BOOL")!=0){
         errorMismatch(yylineno);
         exit(0);
     }
-    $$ = new Exp("NA","BOOL");};
+    $$ = new Exp("NA","BOOL");
+
+    if (((EXP*)$4)->register_id.compare(string("NA"))!=0){
+        string * register_ptr2;
+        emitICMPReg(((EXP*)$4)->register_id, register_ptr2);
+        bpList * true_list2 = new bpList();
+        bpList * false_list2 = new bpList();
+        emitConditionalBranchSavedArg(*register_ptr2, true_list2, false_list2);
+        ((EXP*)$4)->listCol->false_list = CodeBuffer::instance().merge(((EXP*)$4)->listCol->false_list, true_list2);
+        ((EXP*)$4)->listCol->true_list = CodeBuffer::instance().merge(((EXP*)$4)->listCol->true_list, false_list2);
+	}
+	bpList * true_list3 = CodeBuffer::instance().merge(((EXP*)$1)->listCol->true_list, ((EXP*)$4)->listCol->true_list);
+    ((EXP*)$$)->listCol->true_list = false_list3;
+    ((EXP*)$$)->listCol->false_list = ((EXP*)$4)->listCol->false_list;
+    ((EXP*)$$)->bpLabel = ((EXP*)$4)->bpLabel;
+
+};
 Exp : Exp RELOPREL Exp 																{string leftType = ((Exp*)$1)->type;
     string rightType = ((Exp*)$3)->type;
     if((leftType.compare("INT")!=0 && leftType.compare("BYTE")!=0) || (rightType.compare("INT")!=0 && rightType.compare("BYTE")!=0)){

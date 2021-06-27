@@ -20,7 +20,7 @@ public:
 
     Symbol(const char* id, const char* t_type, int offset, bool fSym)
     {
-        //printf("creating new symnol\n");
+        //printf("creating new symbol\n");
         Name = *(new string(id));
         Type = *(new string(t_type));
         Offset = offset;
@@ -39,7 +39,7 @@ public:
     vector<funcDeclaration> funcList;
     vector<string> scopeTypes;
     vector<int> offsetTable;
-
+    vector<string> symbolsOnStack;
 
     SymbolTable()
     {
@@ -60,6 +60,21 @@ public:
 
     }
 
+    bool symbolIsExistsOnStack(string symbolToCheckName){
+        for(string symbolName : symbolsOnStack)
+            if(symbolName.compare(symbolToCheckName)==0)
+                return true;
+        return false;
+    }
+
+    void enterSymbolToStackVector(string symbolToCheckName){
+        symbolsOnStack.push_back(sy)
+        for(string symbolName : symbolsOnStack)
+            if(symbolName.compare(symbolToCheckName)==0)
+                return true;
+        return false;
+    }
+
     int symbolOffset(const char* id) {
     //iterate over the 2d array of vectors, get the relevant
         for (vector<Symbol> symbolsVector : variableTable)
@@ -75,7 +90,7 @@ public:
             for (Symbol sym : symbolsVector)
                 if (sym.Name.compare(id.c_str()) == 0)
                     return sym.Type;
-        return INT32_MIN;
+        return "NA";
     }
 
     void addPrint()

@@ -3,7 +3,9 @@
 #include "bp.hpp"
 
 
-long long regCount = 0;
+int regCount = 0;
+int globalCount = 0;
+
 const char* rAlc()
 {
     string tmp = "";
@@ -12,6 +14,33 @@ const char* rAlc()
     tmp+= to_string(regCount).c_str();
     regCount = regCount + 1;
     return tmp.c_str();
+}
+
+void emitICMPReg(string reg, string * regPtr){
+    string register_info = rAlc();
+    *regptr = register_info;
+    register_info+= " = icmp eq i1 ";
+    register_info+= string(register_name);
+    register_info+= " ,1\n";
+    CodeBuffer::instance().emit(register_info);
+}
+
+void emitGVariableDecl(const char* info, char* ptr0, char* ptr1){
+    string globalAllocation = "@.g";
+    globalAllocation+= to_string(globalCount++);
+    ptr0 = globalAllocation.c_str();
+    string stringToEmit = globalAllocation;
+    stringToEmit+= " = constant [";
+    stringToEmit+= size;
+    stringToEmit+= " x i8] c\"";
+    stringToEmit+= string(info).substr(1, string(info).size()-1);
+    stringToEmit+= "\\00\"\n";
+    CodeBuffer::instance().emitGlobal(stringToEmit);
+
+    string pointer1 = "[";
+    pointer1+= string(string(info).size());
+    pointer1+= " x i8]";
+    ptr1 = pointer1.c_str();
 }
 
 void emitFuncRetType(const char* retType)
@@ -32,9 +61,7 @@ void emitFuncRetType(const char* retType)
 
 bpList pushUncondBr(){
     bpList listToHandle;
-//    string tmp = "br label @";
-//    int index = CodeBuffer::instance().emit(tmp);
-    int place = CodeBuffer::instance().emit("br label @");
+    int place = CodeBuffer::instance().emit(string("br label @\n"));
     listToHandle.push_back(pair<int, BranchLabelIndex>(place, FIRST));
     return listToHandle;
 }
@@ -83,7 +110,7 @@ const char* emitSW_sig(long long size, const char* type, const char* reg, long l
 
 }
 
-const char* emitSW_local(long long size, const char* type, const char* reg, long long offst)
+const char* emitSW_local(const char* type, const char* reg, long long offst)
 {
     string emit_this;
     long long offset = offst + 1;
@@ -137,8 +164,8 @@ void emitSW(long long size, const char* type, const char* reg, long long offset)
             break;
 
         default:
+            tmp = emitSW_local(type, reg, offset);
             break;
-            //tmp = emitSW_localvar(size, type, reg, offset);
     }
 
     //TODO: Add the following code.

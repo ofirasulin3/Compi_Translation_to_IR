@@ -113,7 +113,7 @@ public:
     string register_id;
     string bpLabel;
 
-    explicit Exp(const char* data, const char* t_type, string bpLabel, lists * l = nullptr, string register_id = "NA")
+    explicit Exp(const char* data, const char* t_type, string bpLabel = "NA", lists * l = nullptr, string register_id = "NA")
     {
         info = *(new string(data));
         type = *(new string(t_type));
@@ -220,7 +220,7 @@ public:
     bool hasList;
     string register_id;
 
-    //TODO: maybe need explicit?
+    //maybe need explicit?
     call(/*const char * data, */const char* t_type, const char* id, string register_id, EXPlist* expList = NULL)
     {
         //info = *(new string(data));
