@@ -76,7 +76,7 @@ public:
     }
 
     int symbolOffset(const char* id) {
-    //iterate over the 2d array of vectors, get the relevant
+        //iterate over the 2d array of vectors, get the relevant
         for (vector<Symbol> symbolsVector : variableTable)
             for (Symbol sym : symbolsVector)
                 if (sym.Name.compare(id.c_str()) == 0)

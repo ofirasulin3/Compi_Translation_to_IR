@@ -110,6 +110,7 @@ class Exp: public Node
 public:
     string type;
     lists * listCol;
+    string register_id
     char* ptr0;
     char* ptr1;
     char* bpLabel;
