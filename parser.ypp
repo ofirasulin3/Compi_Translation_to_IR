@@ -1,8 +1,10 @@
 %{
 #include <iostream>
 #include <stdlib.h>
+#include "utilities.h"
 #include "hw3_output.hpp"
 #include "SymbolTable.h"
+
 #define YYSTYPE Node*
 
 
@@ -123,13 +125,12 @@ FuncDecl : RetType ID LPAREN Formals RPAREN                                     
                                                                                              Symbol arg = *(new Symbol(toInsert->paramList[i].name.c_str(), toInsert->paramList[i].type.c_str(), 0, true));
                                                                                              symbolTable->addNewArg(arg);
                                                                                          }
-                                                                                        //TODO: emit funcName and arguments
-                                                                                        //TODO: alloc local variables on stack
-                                                                                        //TODO: emit all parameters of functions with emitStoreWord
+																						 funcHandler(tmp2->info.c_str(), tmp1->retType.c_str(), formalsVecToStringVec(tmp4->FormalDeclarationsList.formalsListDec));
                                                                                         }
 LBRACE Statements RBRACE                                                            {
+																					   RetType* tmp1 = (RetType*) $1;
                                                                                        symbolTable->pop();
-                                                                                       //TODO: emit "ret type" according to the type
+																					   emitFuncRetType(tmp1->retType.c_str());
                                                                                     };
 RetType : Type 																        {    Type * tmp1 = (Type*)$1;
 																					    $$ = new RetType(tmp1->type.c_str());};
@@ -146,17 +147,49 @@ FormalsList : FormalDecl COMMA FormalsList 											{//printf("FormalsList : F
                                                                                         $$ = new FormalsList((formalDeclaration*)$1, (FormalsList*)$3);};
 FormalDecl : Type ID  																{//printf("FormalDecl : Type ID \n");
                                                                                         $$ = new formalDeclaration(((Type*)$1)->type.c_str(), ((Node*)$2)->info.c_str(), yylineno);};
-Statements : Statement 															    {//printf("Statements : Statement 	\n");
-                                                                                        $$ = new statements();
+Statements : Statement 															    
+{//printf("Statements : Statement 	\n");
+    $$ = new statements();
+    statement * tmpStatement = (statement*)$1;
+    long long size = tmpStatement->listCol->continue_list->size();
+    bpList * continue_list = tmpStatement->listCol->continue_list;
+    bpList * break_list = tmpStatement->listCol->break_list;
+    bpList * next_list = tmpStatement->listCol->next_list;
+    if(size > 0)
+    {
+       CodeBuffer::instance().bpatch( *next_list , CodeBuffer::instance().genLabel());
 
-                                                                                        //TODO: go over nextList of $1 and backpatch to a label
-                                                                                        //TODO: pass $1 continueList and breakList to $$
-                                                                                        };
-Statements : Statements Statement  													{//printf("Statements : Statements Statement \n");
-                                                                                        $$ = new statements();
-                                                                                        //TODO: go over nextList of $1 and backpatch to a label
-                                                                                        //TODO: pass to $$ the continueList and breakList of $1 and $2 with merge
-                                                                                        };
+    }
+    statements * tmp2 = (statements*)$$;
+    tmp2->listCol->continue_list = continue_list;
+    tmp2->listCol->break_list = break_list;
+};
+Statements : Statements Statement  													
+{
+$$ = new statements();
+    statement * tmpStatement2 = (statement*)$2;
+    long long size = tmpStatement2->listCol->continue_list->size();
+    bpList * continue_list2 = (tmpStatement2->listCol->continue_list);
+    bpList * break_list2 = tmpStatement2->listCol->break_list;
+    bpList * next_list2 = tmpStatement2->listCol->next_list;
+
+    $$ = new statements();
+    statement * tmpStatement1 = (statement*)$1;
+
+    bpList * continue_list1 = tmpStatement1->listCol->continue_list;
+    bpList * break_list1 = tmpStatement1->listCol->break_list;
+    bpList * next_list1 = tmpStatement1->listCol->next_list;
+
+    if(size > 0)
+    {
+       CodeBuffer::instance().bpatch( *next_list2 , CodeBuffer::instance().genLabel());
+    }
+
+    statements *tmpS = (statements*) $$;
+
+    *(tmpS->listCol->continue_list) = CodeBuffer::instance().merge(*continue_list1 ,*continue_list2);
+};
+
 Statement : LBRACE   												{
                                                                                     //printf("Statement : LBRACE Statements RBRACE\n");
                                                                                     symbolTable->AddNewTable("BLOCK");}
@@ -164,10 +197,6 @@ Statement : LBRACE   												{
 																					//this is after rbrace
 																					symbolTable->pop();
 																					$$ = new statement();
-                                                                                    //pass $3 continueList and breakList to $$
-                                                                                    ((statement *)$$)->ListCol->continue_list = ((statement *)$3)->ListCol->continue_list
-                                                                                    (statement *)$$)->ListCol->break_list = ((statement *)$3)->ListCol->break_list
-
 																					};
 
 Statement : Type ID SC  															{//printf("Statement : Type ID SC \n");
@@ -185,11 +214,6 @@ Statement : Type ID SC  															{//printf("Statement : Type ID SC \n");
 																					Symbol arg = *(new Symbol(id, type->type.c_str(), 0, false));
 																					//create new arg object and insert to the *last* table on the symbol table.};
 																					symbolTable->addNewArg(arg);
-
-                                                                                    //emitStoreWord with offset of $2
-                                                                                    int offset = symbolTable.symbolOffset(((Node*)$2)->data);
-                                                                                    emitSW(0, symbolTable.symbolType(((Node*)$2)->data), "0", offset);
-                                                                                    $$ = new statement();
 };
 
 Statement : Type ID ASSIGN Exp SC
@@ -231,8 +255,6 @@ Statement : Type ID ASSIGN Exp SC
         exit(0);
     }
 
-    //TODO: bring here
-
     $$ = new statement();
     };
 
@@ -258,7 +280,6 @@ Statement : ID ASSIGN Exp SC
     {
         errorMismatch(yylineno);
     }
-    //TODO: bring here
 
     $$ = new statement();};
 Statement : Call SC 															    {$$ = new statement();};
@@ -268,10 +289,9 @@ Statement : RETURN SC    												    		{
 																					    errorMismatch(yylineno);
 																					    exit(0);
 																					}
-																					emitFuncRetType("VOID");
-
 																					$$ = new statement();};
-Statement : RETURN Exp SC  															{
+Statement : RETURN Exp SC  															
+{
     const char* type = ((Exp*)$2)->type.c_str();
     //Check if function return type is same as expression type - report ERROR
     //if(symbolTable->getLastFunc()->returnType!=type)
@@ -282,25 +302,84 @@ Statement : RETURN Exp SC  															{
         errorMismatch(yylineno);
         exit(0);
     }
-    //TODO: take care of boolean logic bring here
+	
+	    Exp* tmp4 = (Exp*)$2;
 
-    $$ = new statement();};
+    bool cond = (((Exp*)tmp4)->rigister.compare((string("NA"))) == 0) &&
+            (((Exp*)tmp4)->type.compare((string("BOOL"))) == 0);
+
+    if(cond)
+    {
+
+
+        bpList * trueL = tmp4->listCol->true_list;
+        bpList * falseL = tmp4->listCol->false_list;
+
+
+        string tmp1;
+        string tmp2;
+        string tmp3;
+
+        CodeBuffer::instance().emit("unreachable\n");
+        string tmp = handleBool();
+
+        tmp1 = returnFirstAppearance(tmp);
+        tmp2 = returnSecondAppearance(tmp);
+        tmp3 = returnThirdAppearance(tmp);
+
+        tmp4->rigister = tmp1;
+
+        CodeBuffer::instance().bpatch(*trueL, tmp2);
+        CodeBuffer::instance().bpatch(*falseL, tmp3);
+
+        //add returnFromFunc() like barak did
+		finishFunctionScope(tmp4->info, tmp4->type, tmp4->rigister, symbolTable->getLastFunc()->returnType);
+    }
+	
+    $$ = new statement();
+};
 Statement: IfRule %prec IF
-
 {
-//TODO: pass to $$ nextList the merge of elseList of $1 and elseList
-//TODO: pass to $$ the continueList of $1
-//TODO: pass to $$ the breakList of $1
+	$$ = new statement();
 
-$$ = new statement();};
+    statements * tmp = (statements*)$1;
+    statement * tmp2 = (statement*)$$;
+    bpList * tmp_next = tmp->listCol->next_list;
+    bpList * tmp_else = tmp->listCol->else_list;
+    bpList * continue_list = tmp->listCol->continue_list;
+    bpList * break_list = tmp->listCol->break_list;
+
+    *(tmp2->listCol->next_list) = (CodeBuffer::instance().merge(*tmp_next,*tmp_else));
+    (tmp2->listCol->continue_list) = continue_list;
+    (tmp2->listCol->break_list) = break_list;
+	
+};
+
 
 Statement : IfRule ELSE
 {
+statement * tmp = (statement*)$1;
+bpList * else_list = tmp->listCol->else_list;
+CodeBuffer::instance().bpatch( *else_list , CodeBuffer::instance().genLabel());
 symbolTable->AddNewTable("IF");
-//TODO: generate a label and backpatch to it
 }
-Statement						  												    {    symbolTable->pop();
-																					$$ = new statement();};
+Statement
+{
+symbolTable->pop();
+$$ = new statement();
+    symbolTable->pop();
+    $$ = new statement();
+    statement * tmp = (statement*)$$;
+    bpList * uncondBranch = new bpList();
+    *tmp->listCol->next_list = CodeBuffer::instance().merge(*((statement*)$4)->listCol->next_list ,*((statement*)$1)->listCol->next_list  );
+    handleUBR(uncondBranch);
+    *tmp->listCol->next_list = CodeBuffer::instance().merge(*((statement*)$4)->listCol->next_list ,*uncondBranch  );
+    *tmp->listCol->continue_list = CodeBuffer::instance().merge(*((statement*)$4)->listCol->continue_list ,*((statement*)$1)->listCol->continue_list  );
+    *tmp->listCol->break_list = CodeBuffer::instance().merge(*((statement*)$4)->listCol->break_list ,*((statement*)$1)->listCol->break_list  );
+
+
+
+};
 IfRule : IF LPAREN Exp RPAREN
 {//open a block because of if statement
 
@@ -310,6 +389,19 @@ IfRule : IF LPAREN Exp RPAREN
         errorMismatch(yylineno);
         exit(0);
     }
+       Exp* tmp3 = (Exp*)$3;
+        bpList * tl;
+        bpList * fl;
+        if(tmp3->rigister.compare("NA") != 0)
+        {
+            emitConditionalBranchSavedArg(tmp3->rigister, tl, fl);
+            tmp3->listCol->true_list = tl;
+            tmp3->listCol->false_list = fl;
+        }
+        CodeBuffer::instance().emit("unreachable\n");
+        string lbl = CodeBuffer::instance().genLabel();
+        CodeBuffer::instance().bpatch( *tmp3->listCol->true_list , lbl);
+
     symbolTable->AddNewTable("IF");
 }
 Statement
@@ -319,35 +411,71 @@ Statement
     $$ = new statement();
 };
 
-Statement : WHILE LPAREN Exp RPAREN 												{ string type = ((Exp*)$3)->type;
+Statement : WHILE wMrkr LPAREN Exp RPAREN
+                                                                                    {
+                                                                                    const char* lbl = CodeBuffer::instance().genLabel().c_str();
+                                                                                    string type = ((Exp*)$3)->type; //o
+                                                                                     if(type.compare("BOOL")!=0)
+                                                                                     {//o
+                                                                                           errorMismatch(yylineno); //o
+                                                                                           exit(0); //o
+                                                                                     } //o
 
-																					if(type!="BOOL"){
-																					errorMismatch(yylineno);
-																					exit(0);
-																					}
-																					symbolTable->AddNewTable("WHILE");
+                                                                                     symbolTable->AddNewTable("WHILE"); //o
+                                                                                     Exp * tmp1 = (Exp*)$4;
+                                                                                     if(tmp1->rigister.compare("NA") == 0)
+                                                                                     {
+                                                                                         CodeBuffer::instance().emit("unreachable\n");
+                                                                                         CodeBuffer::instance().bpatch( *tmp1->listCol->true_list , string(lbl));
+                                                                                     }
+
+                                                                                     else
+                                                                                         {
+                                                                                             bpList * trueList = new bpList();
+                                                                                             bpList * falseList = new bpList();
+                                                                                             emitConditionalBranchSavedArg(tmp1->rigister, trueList, falseList);
+                                                                                             CodeBuffer::instance().bpatch( *trueList , string(lbl));
+                                                                                             tmp1->listCol->false_list = falseList;
+                                                                                         }
 
 																					}
+
 Statement 																			{
-																					symbolTable->pop();
-																					$$ = new statement();};
+																					    statement * dollardollar = (statement*)$$;
+                                                                                        Exp * dollar4 = (Exp*)$4;
+                                                                                        symbolTable->pop();
+                                                                                        $$ = new statement();
+                                                                                        bpList * newList = new bpList();
+                                                                                        handleUBR(newList);
+                                                                                        statement * tmp7 = (statement*)$7;
+                                                                                        *(tmp7->listCol->continue_list) = CodeBuffer::instance().merge( *tmp7->listCol->continue_list, *newList);
+                                                                                        string info = $2->info;
+                                                                                        bpList * llist = tmp7->listCol->continue_list;
+                                                                                        CodeBuffer::instance().bpatch(*llist, info);
+                                                                                        *dollardollar->listCol->next_list = CodeBuffer::instance().merge( *dollar4->listCol->false_list,  *tmp7->listCol->break_list);
+																					};
+
+wMrkr :
+{
+        const char* lbl2 = CodeBuffer::instance().genLabel().c_str();
+        bpList * list = new bpList();
+        handleUBR(list);
+        CodeBuffer::instance().bpatch(*list, string(lbl2));
+        $$ = new Node();
+        $$->info = *(new string(lbl2));
+}
+
 Statement : BREAK SC  																{ if (!symbolTable->isContainedByScopeType("WHILE") && !symbolTable->isContainedByScopeType("SWITCH")){
 																					errorUnexpectedBreak(yylineno);
 																					exit(0);
 																					}
-																					$$ = new statement();
-																					((statement*)$$)->ListCol->break_ist = pushUncondBr();
-
-																					};
+																					$$ = new statement();};
 Statement : CONTINUE SC 															{
                                                                                     if (!symbolTable->isContainedByScopeType("WHILE")) {
 																					errorUnexpectedContinue(yylineno);
 																					exit(0);
 																					}
-																					$$ = new statement();
-																					((statement*)$$)->ListCol->continue_list = pushUncondBr();
-
-																					};
+																					$$ = new statement();};
 Statement : SWITCH LPAREN Exp RPAREN 												{ string type = ((Exp*)$3)->type;
     //printf("SWITCH variable is: %s\n", ((Exp*)$3)->info.c_str());
     if(!symbolTable->isVarExists(((Exp*)$3)->info.c_str())){
@@ -445,9 +573,83 @@ Call : ID LPAREN RPAREN 														    {    //Check if function exists in DB
 																					}
 
 
-																					$$ = new call(symbolTable->getFunctionType(funcName), funcName);};
-ExpList : Exp  																        {$$ = new EXPlist((Exp*)$1);};
-ExpList : Exp COMMA ExpList 													    {$$ = new EXPlist((Exp*)$1,(EXPlist*)$3);};
+																					$$ = new call(symbolTable->getFunctionType(funcName), funcName);
+
+
+                                                                                        call * tmp = (call*)$$;
+                                                                                        Node* tmp2 = $1;
+                                                                                        const char* rg1;
+                                                                                        callFuncEmitHandler(rg1, tmp2->info.c_str(), symbolTable->getFunctionType(tmp2->info.c_str()));
+                                                                                        tmp->rigister = rg1;
+
+																					};
+ExpList : Exp
+{
+  bpList * list = nullptr;
+   Exp* tmp1 = (Exp*) $1;
+   string to_seperate;
+   string s1;
+   string s2;
+   string s3;
+   if(tmp1->info.compare("BOOL")==0 && tmp1->rigister.compare("NA")==0)
+   {
+       handleUBR(list);
+       to_seperate = handleBool();
+       s1 = returnFirstAppearance(to_seperate);
+       s2 = returnSecondAppearance(to_seperate);
+       s3 = returnThirdAppearance(to_seperate);
+       tmp1->rigister = s1;
+       CodeBuffer::instance().bpatch(*tmp1->listCol->true_list, s2);
+       CodeBuffer::instance().bpatch(*tmp1->listCol->false_list, s3);
+       if(string(tmp1->bcklbl).compare("NA") != 0)
+       {
+           handleUBR(list);
+           CodeBuffer::instance().bpatch(*list, (tmp1)->bcklbl);
+       }
+   }
+   $$ = new EXPlist(tmp1);
+
+   EXPlist * dollardollar = (EXPlist*)$$;
+   dollardollar ->listCol->label_list = list;
+
+};
+ExpList : Exp COMMA ExpList
+{
+    string to_seperate;
+    string s1;
+    string s2;
+    string s3;
+    EXPlist * tmp3 = (EXPlist*) $3;
+    Exp * tmp1 = (Exp*) $1;
+    bpList * tmp3_list = nullptr;
+    bpList * ttmp_list = nullptr;
+    tmp3_list = tmp3->listCol->label_list;
+    if(tmp1->type.compare("BOOL") == 0 && tmp1->rigister.compare("NA") == 0)
+    {
+        if(tmp3_list->size() == 0)
+        {
+            handleUBR(tmp3_list);
+        }
+        to_seperate = handleBool();
+        s1 = returnFirstAppearance(to_seperate);
+        s2 = returnSecondAppearance(to_seperate);
+        s3 = returnThirdAppearance(to_seperate);
+        tmp1->rigister = s1;
+        CodeBuffer::instance().bpatch(*tmp3->listCol->true_list, s2);
+        CodeBuffer::instance().bpatch(*tmp3->listCol->false_list, s3);
+
+        if(tmp3->listCol->label_list->size() > 0)
+        {
+            handleUBR(ttmp_list);
+            CodeBuffer::instance().bpatch(*ttmp_list, tmp1->bcklbl);
+        }
+
+    }
+
+    $$ = new EXPlist(tmp1,tmp3);
+    tmp3->listCol->label_list = tmp3_list;
+
+};
 Type : INT  																 		{//printf("Type : INT \n");
                                                                                          $$ = new Type("NA","INT");
                                                                                     };
@@ -480,6 +682,37 @@ string leftType = ((Exp*)$1)->type;
             resultType = "BYTE";
         }
         $$ = new Exp("NA", resultType.c_str());
+
+
+    const char * opArr[2];
+    Exp * tmp1 = (Exp*) $1;
+    Exp * tmp3 = (Exp*) $3;
+    Node* tmp2 = (Node*) $2;
+    Exp* tmpp = (Exp*) $$;
+    const char* rg;
+
+    if(tmp1->rigister.compare("NA") == 0)
+    {
+        opArr[0] = tmp1->rigister.c_str();
+    }
+    else
+    {
+        opArr[0] = tmp1->info.c_str();
+    }
+
+    if(tmp3->rigister.compare("NA") == 0)
+    {
+        opArr[1] = tmp3->rigister.c_str();
+    }
+    else
+    {
+        opArr[1] = tmp3->info.c_str();
+    }
+
+    emitBinary(tmp2->info.c_str(),opArr[0], opArr[1], tmp1->type.c_str(), tmp3->type.c_str(), &rg);
+
+    tmpp->rigister = rg;
+
     }};
 Exp : Exp BINOPPLUS Exp
 {string leftType = ((Exp*)$1)->type;
@@ -497,6 +730,36 @@ Exp : Exp BINOPPLUS Exp
             resultType = "BYTE";
         }
         $$ = new Exp("NA", resultType.c_str());
+
+            const char * opArr[2];
+            Exp * tmp1 = (Exp*) $1;
+            Exp * tmp3 = (Exp*) $3;
+            Node* tmp2 = (Node*) $2;
+            Exp* tmpp = (Exp*) $$;
+            const char* rg;
+
+            if(tmp1->rigister.compare("NA") == 0)
+            {
+                opArr[0] = tmp1->rigister.c_str();
+            }
+            else
+            {
+                opArr[0] = tmp1->info.c_str();
+            }
+
+            if(tmp3->rigister.compare("NA") == 0)
+            {
+                opArr[1] = tmp3->rigister.c_str();
+            }
+            else
+            {
+                opArr[1] = tmp3->info.c_str();
+            }
+
+            emitBinary(tmp2->info.c_str(),opArr[0], opArr[1], tmp1->type.c_str(), tmp3->type.c_str(), &rg);
+
+            tmpp->rigister = rg;
+
     }
 };
 Exp : ID  																            {
@@ -514,9 +777,7 @@ if(!symbolTable->isVarExists(((Node*)$1)->info.c_str()))
     //printf("type is: %s\n", type.c_str());
     $$ = new Exp(info.c_str(), type.c_str());
 };
-Exp : Call 																            {$$ = new Exp("NA", ((call*)$1)->type.c_str());
-                                                                                    ((EXP*)$$)->register_id = ((call*)$1)->register_id;
-                                                                                    };
+Exp : Call 																            {$$ = new Exp("NA", ((call*)$1)->type.c_str());};
 Exp : NUM  																            {$$ = new Exp("NA", "INT");};
 Exp : NUM B   																		{  int maxVal = 255;
     if(stoi(((Node*)$1)->info) > maxVal)
@@ -527,15 +788,8 @@ Exp : NUM B   																		{  int maxVal = 255;
     $$ = new Exp("NA", "BYTE");
     };
 Exp : STRING  																		{$$ = new Exp(((Exp*)$1)->info.c_str(), "STRING");};
-Exp : TRUE    																		{$$ = new Exp(((Exp*)$1)->info.c_str(), "BOOL");
-  																				    ((EXP*)$$)->ListCol->true_list = emitUncondBr();
-  																					((EXP*)$$)->bpLabel = CodeBuffer::instance().genLabel();
-                                                                                    };
-Exp : FALSE   																		{$$ = new Exp(((Exp*)$1)->info.c_str(), "BOOL");
-                                                                                    ((EXP*)$$)->ListCol->false_list = emitUncondBr();
-                                                                                    ((EXP*)$$)->bpLabel = CodeBuffer::instance().genLabel();
-
-                                                                                    };
+Exp : TRUE    																		{$$ = new Exp(((Exp*)$1)->info.c_str(), "BOOL");};
+Exp : FALSE   																		{$$ = new Exp(((Exp*)$1)->info.c_str(), "BOOL");};
 Exp : NOT Exp 																		{
     Exp* tmp = (Exp*)$2;
     if(tmp->type.compare(*(new string("BOOL")))==0)
@@ -546,7 +800,21 @@ Exp : NOT Exp 																		{
     {
         errorMismatch(yylineno);
         exit(0);
-    }};
+    }
+
+         string * reg = new string();
+         Exp* tmp2 = (Exp*) $2;
+         Exp * tmp0 = (Exp*) $$;
+         if(tmp2->rigister.compare("NA") == 0)
+         {
+             ESbool(tmp2->rigister.c_str(),reg);
+             tmp0->rigister = *reg;
+         }
+         tmp0->listCol->true_list = tmp2->listCol->false_list;
+         tmp0->listCol->false_list = tmp2->listCol->true_list;
+
+
+    };
 Exp : Exp AND Exp  																    {
 string leftType = ((Exp*)$1)->type;
     string rightType = ((Exp*)$3)->type;
@@ -569,7 +837,42 @@ Exp : Exp RELOPREL Exp 																{string leftType = ((Exp*)$1)->type;
         errorMismatch(yylineno);
         exit(0);
     }
-    $$ = new Exp("NA","BOOL");};
+    $$ = new Exp("NA","BOOL");
+
+        bpList * list;
+        const char* op1;
+        const char* op2;
+        Exp * tmp1 = (Exp*) $1;
+        Exp * tmp3 = (Exp*) $3;
+        Node * tmp2 = (Node*) $2;
+        Exp * tmp = (Exp*) $$;
+
+        if(tmp1->rigister.compare("NA") == 0)
+        {
+            op1 = tmp1->rigister.c_str();
+        }
+        if(tmp1->rigister.compare("NA") != 0)
+        {
+            op1 = tmp1->info.c_str();
+        }
+
+        if(tmp3->rigister.compare("NA") == 0)
+        {
+            op2 = tmp3->rigister.c_str();
+        }
+        if(tmp3->rigister.compare("NA") != 0)
+        {
+            op2 = tmp3->info.c_str();
+        }
+
+        emitRelopHandler(tmp2->info.c_str(), op1, op2, tmp1->type.c_str(), tmp3->type.c_str(), &list);
+
+        *(tmp->listCol->true_list) = CodeBuffer::instance().makelist((*list)[0]);
+        *(tmp->listCol->true_list) = CodeBuffer::instance().makelist((*list)[1]);
+        tmp->bcklbl = CodeBuffer::instance().genLabel().data();
+
+
+    };
 Exp : Exp RELOPEQ Exp 																{string leftType = ((Exp*)$1)->type;
     string rightType = ((Exp*)$3)->type;
     if((leftType.compare("INT")!=0 && leftType.compare("BYTE")!=0) || (rightType.compare("INT")!=0 && rightType.compare("BYTE")!=0)){
@@ -577,7 +880,41 @@ Exp : Exp RELOPEQ Exp 																{string leftType = ((Exp*)$1)->type;
         exit(0);
     }
 
-    $$ = new Exp("NA","BOOL");};
+    $$ = new Exp("NA","BOOL");
+
+            bpList * list;
+            const char* op1;
+            const char* op2;
+            Exp * tmp1 = (Exp*) $1;
+            Exp * tmp3 = (Exp*) $3;
+            Node * tmp2 = (Node*) $2;
+            Exp * tmp = (Exp*) $$;
+
+            if(tmp1->rigister.compare("NA") == 0)
+            {
+                op1 = tmp1->rigister.c_str();
+            }
+            if(tmp1->rigister.compare("NA") != 0)
+            {
+                op1 = tmp1->info.c_str();
+            }
+
+            if(tmp3->rigister.compare("NA") == 0)
+            {
+                op2 = tmp3->rigister.c_str();
+            }
+            if(tmp3->rigister.compare("NA") != 0)
+            {
+                op2 = tmp3->info.c_str();
+            }
+
+            emitRelopHandler(tmp2->info.c_str(), op1, op2, tmp1->type.c_str(), tmp3->type.c_str(), &list);
+
+            *(tmp->listCol->true_list) = CodeBuffer::instance().makelist((*list)[0]);
+            *(tmp->listCol->true_list) = CodeBuffer::instance().makelist((*list)[1]);
+            tmp->bcklbl = CodeBuffer::instance().genLabel().data();
+
+    };
 CaseList : CaseDecl CaseList														{$$ = new CaseList();};
  CaseList : CaseDecl																	{$$ = new CaseList();};
  CaseList : DEFAULT COLON Statements													{$$ = new CaseList();};

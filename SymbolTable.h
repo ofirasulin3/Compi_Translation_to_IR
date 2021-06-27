@@ -60,24 +60,6 @@ public:
 
     }
 
-    int symbolOffset(const char* id) {
-    //iterate over the 2d array of vectors, get the relevant
-        for (vector<Symbol> symbolsVector : variableTable)
-            for (Symbol sym : symbolsVector)
-                if (sym.Name.compare(id.c_str()) == 0)
-                    return sym.Offset;
-        return INT32_MIN;
-    }
-
-    string symbolType(const char* id) {
-        //iterate over the 2d array of vectors, get the relevant
-        for (vector<Symbol> symbolsVector : variableTable)
-            for (Symbol sym : symbolsVector)
-                if (sym.Name.compare(id.c_str()) == 0)
-                    return sym.Type;
-        return INT32_MIN;
-    }
-
     void addPrint()
     {
         funcDeclaration print = *(new funcDeclaration("print",*(new vector<formalDeclaration>) ,"VOID"));

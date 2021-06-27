@@ -109,23 +109,32 @@ class Exp: public Node
 {
 public:
     string type;
+    string rigister;
     lists * listCol;
-    string register_id;
-    string bpLabel;
+    char* ptr0;
+    char* ptr1;
+    char* bcklbl;
 
-    explicit Exp(const char* data, const char* t_type, string bpLabel, lists * l = nullptr, string register_id = "NA")
+    explicit Exp(const char* data, const char* t_type, lists * l = nullptr, string reg = "NA")
     {
         info = *(new string(data));
         type = *(new string(t_type));
         listCol = l;
-        register_id = register_id;
-        bpLabel = bpLabel;
+        rigister = reg;
+        bcklbl = "NA";
+        ptr0 = "NA";
+        ptr1 = "NA";
     }
 
     Exp(const Exp & e)
     {
         info = *(new string(e.info.c_str()));
         type = *(new string(e.type.c_str()));
+        listCol = e.listCol;
+        rigister = e.rigister;
+        bcklbl = e.bcklbl;
+        ptr0 = e.ptr0;
+        ptr1 = e.ptr1;
     }
 
     ~Exp()  = default;
@@ -187,7 +196,8 @@ public:
     {
         //info = *(new string(data));
         this->vectorOfExp.push_back(*exp);
-        listCol = new lists();
+        listCol = exp->listCol;
+
         if(expList!=NULL)
         {
             //   this->vectorOfExp.insert(*exp);
@@ -218,15 +228,16 @@ public:
     string type;
     string ID;
     bool hasList;
-    string register_id;
+    string rigister;
 
     //TODO: maybe need explicit?
-    call(/*const char * data, */const char* t_type, const char* id, string register_id, EXPlist* expList = NULL)
+    call(/*const char * data, */const char* t_type, const char* id, EXPlist* expList = NULL)
     {
         //info = *(new string(data));
         type = *(new string(t_type)); //return type of function
         ID = *(new string(id));//function name
-        register_id = register_id;
+        rigister = "NA";
+
         if(expList)
         {
             this->expList = *expList;
