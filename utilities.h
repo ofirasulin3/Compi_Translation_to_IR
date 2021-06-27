@@ -1,6 +1,21 @@
 
 #include "helpers.h"
 #include "bp.hpp"
+#include <stdio.h>
+
+
+#define div 0
+#define mul 1
+#define plus 2
+#define minus 3
+
+#define equalss 0
+#define not_equals 1
+#define bigger_then 2
+#define smaller_then 3
+#define bigger_equal_then 4
+#define smaller_equal_then 5
+
 
 
 int regCount = 0;
@@ -43,11 +58,89 @@ void emitGVariableDecl(const char* info, char* ptr0, char* ptr1){
     ptr1 = pointer1.c_str();
 }
 
+void handleLW(short offst, string type, short sSize, short isExistsOnStack, string * toRet)
+{
+    string tmp;
+    const char* vPointer;
+    const char* lw_reg;
+    short offset;
+    string toReturn;
+    offset = offst + 1;
+    if(!offst >= 0) {
+        offset = -1 * offset;
+        vPointer = rAlc();
+        lw_reg = rAlc();
+        toReturn = lw_reg;
+        tmp += vPointer;
+        tmp += " =  getelementptr [";
+        tmp += to_string(sSize);
+        tmp += "x i32], [";
+        tmp += to_string(sSize);
+        tmp += "x i32]* %inputPtr, i32 0, i32 ";
+        tmp += to_string(offset);
+        tmp += "\n";
+
+        tmp += lw_reg;
+        tmp += " = load i32, i32* ";
+        tmp += vPointer;
+        tmp += "\n";
+
+
+        const char *retThis;
+
+        if (type.compare(string("INT")) == 0) {
+            retThis = rAlc();
+            tmp += retThis;
+            tmp += " = trunc i32 ";
+            tmp += lw_reg;
+            tmp += " to ";
+            tmp += type;
+            tmp += "\n";
+            CodeBuffer::instance().emit(tmp.c_str());
+            *toRet = *(new string(retThis));
+            return;
+        }
+        CodeBuffer::instance().emit(tmp.c_str());
+        retThis = lw_reg;
+        *toRet = *(new string(retThis));
+        return;
+    }
+
+    const char* v2Pointer = rAlc();
+    const char* lw_reg2 = rAlc();
+
+    tmp += v2Pointer;
+    tmp += " =  getelementptr [50 x i32], [50 x i32]* %ptr, i32 0, i32 ";
+    tmp += to_string(offset);
+    tmp += "\n";
+    tmp += lw_reg2;
+    tmp += " = load i32, i32* ";
+    tmp += v2Pointer;
+    tmp += "\n";
+    if (type.compare(string("INT")) == 0) {
+        string retThis;
+        retThis = rAlc();
+        tmp += retThis;
+        tmp += " = trunc i32 ";
+        tmp += lw_reg2;
+        tmp += " to ";
+        tmp += type;
+        tmp += "\n";
+        CodeBuffer::instance().emit(tmp.c_str());
+        *toRet = *(new string(retThis));
+        return;
+    }
+
+    CodeBuffer::instance().emit(tmp.c_str());
+    *toRet = *(new string(lw_reg2));
+    return;
+}
+
 void emitFuncRetType(const char* retType)
 {
     if(string("VOID").compare(string(retType)) == 0)
     {
-        CodeBuffer::instance().emit("ret void\n");
+        CodeBuffer::instance().emit(string("ret void\n"));
     }
     else
     {
@@ -55,7 +148,7 @@ void emitFuncRetType(const char* retType)
         tmp += retType;
         tmp+= " 0\n";
         tmp+= "}";
-        CodeBuffer::instance().emit(tmp.c_str());
+        CodeBuffer::instance().emit(tmp);
     }
 }
 
@@ -110,7 +203,7 @@ const char* emitSW_sig(long long size, const char* type, const char* reg, long l
 
 }
 
-const char* emitSW_local(const char* type, const char* reg, long long offst)
+const char* emitSW_local( const char* type, const char* reg, long long offst)
 {
     string emit_this;
     long long offset = offst + 1;
@@ -164,12 +257,11 @@ void emitSW(long long size, const char* type, const char* reg, long long offset)
             break;
 
         default:
-            tmp = emitSW_local(type, reg, offset);
+            tmp = emitSW_local( type, reg, offset);
             break;
     }
 
-    //TODO: Add the following code.
-    //CodeBuffer::instance().emit(tmp.str());
+    CodeBuffer::instance().emit(tmp);
 }
 
 void funcHandler(const char* funcName, const char* retType, const vector<string>& listOfFormalDec)
@@ -196,8 +288,7 @@ void funcHandler(const char* funcName, const char* retType, const vector<string>
     }
     funcToEmit += "){\n";
 
-    //Add the following code:
-    CodeBuffer::instance().emit(funcToEmit.c_str());
+    CodeBuffer::instance().emit(funcToEmit);
 
     funcLocalVars = "%ptr = alloca [50 x i32], i32 50\n%inputPtr = alloca [";
     funcLocalVars += to_string(listOfFormalDec.size());
@@ -206,7 +297,7 @@ void funcHandler(const char* funcName, const char* retType, const vector<string>
     funcLocalVars+= '\n';
 
 
-    CodeBuffer::instance().emit(funcLocalVars.c_str());
+    CodeBuffer::instance().emit(funcLocalVars);
 
     j = 0;
 
@@ -231,6 +322,105 @@ vector<string> formalsVecToStringVec(vector<formalDeclaration> formalsListDec)
     return toRet;
 }
 
+void callFuncEmitHandler(const char* toRet, const char* funcId, const char* retType, vector<Exp> * expArr = nullptr, vector<string> * inputArr = nullptr)
+{
+    unsigned short j = 0;
+    unsigned short inc = 0;
+    string tmp;
+    string retThis = *(new string());
+    const char* toEmit[6] = {"call void @print( i8* getelementptr (", " , ", "* ", ", i32 0, i32 0) )", " = zext i8 ", " to i32"};
+    bool indicator = expArr != nullptr? true : false;
+
+    vector<Exp>  expArrTmp = vector<Exp>();
+
+    if(expArr != nullptr)
+    {
+        expArrTmp = *expArr;
+    }
+
+    if(string(funcId).compare(string("print")) == 0)
+    {
+        tmp = toEmit[0];
+        tmp += (*expArr)[0].ptr0;
+        tmp += toEmit[1];
+        tmp += (*expArr)[0].ptr0;
+        tmp += toEmit[2];
+        tmp += (*expArr)[0].ptr1;
+        tmp += toEmit[3];
+        tmp += '\n';
+        CodeBuffer::instance().emit(tmp);
+        return;
+    }
+
+    inc=1;
+
+    while (j < expArrTmp.size())
+    {
+       if((expArrTmp)[j].type.compare("BYTE") == 0)
+       {
+           if((*inputArr)[j].compare("INT") == 0) {
+               (expArrTmp)[j].type = string("INT");
+                if(expArrTmp[j].rigister.compare("NA")!=0)
+                {
+                    const char* rg = rAlc(); //toEmit
+                    tmp += rg;
+                    tmp += toEmit[4];
+                    tmp += expArrTmp[j].rigister.c_str();
+                    tmp += toEmit[4];
+                    tmp += "\n";
+                    expArrTmp[j].rigister = rg;
+                }
+           }
+       }
+       ++j;
+    }
+
+    if(string(retType).compare("VOID") != 0)
+    {
+        retThis = rAlc();
+        tmp += retThis;
+        tmp += " = ";
+    }
+    tmp += "call ";
+    tmp += retType;
+    tmp +=  " @";
+    tmp += funcId;
+    tmp += "(";
+
+    j = 0;
+
+    while(j<expArrTmp.size())
+    {
+        if(expArrTmp[j].rigister.compare("NA"))
+        {
+            tmp += expArrTmp[j].type.c_str();
+            tmp += " ";
+            tmp += expArrTmp[j].info;
+            tmp += ", ";
+        }
+        else
+        {
+            tmp += expArrTmp[j].type.c_str();
+            tmp += " ";
+            tmp += expArrTmp[j].rigister;
+            tmp += ", ";
+        }
+
+        if(inc >= expArrTmp.size())
+        {
+                tmp.pop_back();
+        }
+        ++inc;
+
+    }
+
+    tmp += ')';
+
+    CodeBuffer::instance().emit(tmp);
+
+    toRet = retThis.c_str();
+}
+
 string handleBool()
 { //TBD: Order may be bad
 
@@ -244,9 +434,9 @@ string handleBool()
     toWrite[2] = "]\n";
 
     labels[0] = CodeBuffer::instance().genLabel().c_str(); //tlbl
-    idx12[0] = CodeBuffer::instance().emit(" br label @");
+    idx12[0] = CodeBuffer::instance().emit(string(" br label @\n"));
     labels[1] = CodeBuffer::instance().genLabel().c_str(); //flbl
-    idx12[1] = CodeBuffer::instance().emit(" br label @");
+    idx12[1] = CodeBuffer::instance().emit(string(" br label @\n"));
 
     pair<int, BranchLabelIndex> pair1 = *(new pair<int, BranchLabelIndex>(idx12[0], FIRST));
     pair<int, BranchLabelIndex> pair2 = *(new pair<int, BranchLabelIndex>(idx12[1], FIRST));
@@ -381,3 +571,314 @@ void finishFunctionScope(string info, string type, string rigister, string retTy
 
     CodeBuffer::instance().emit(strStorage[0].c_str());
 }
+
+void handleUBR(bpList * toRet)
+{
+    (*toRet)[0] = (pair<int, BranchLabelIndex>(CodeBuffer::instance().emit(string("br label @\n")), FIRST));
+}
+
+void emitConditionalBranchSavedArg(string rg, bpList * tl, bpList * fl)
+{
+    long long idx;
+    string tmp;
+    tmp = "br i1 ";
+    tmp += rg;
+    tmp += ", label @, label @";
+
+    idx = CodeBuffer::instance().emit(tmp);
+
+    pair<int, BranchLabelIndex >  p1((int)idx, FIRST);
+    pair<int, BranchLabelIndex >  p2((int)idx, SECOND);
+
+    (*tl)[0] = p1;
+    (*fl)[0] = p2;
+
+}
+
+void emitRelopHandler(const char* op, const char* left, const char* right, const char* leftType, const char* rightType, bpList ** list)
+{
+    int case_num;
+    const char* oper;
+    const char* t_type;
+    bool cond = (string(leftType).compare(string(rightType)) == 0) && string(leftType).compare(string("BYTE"));
+
+    if(string(op).compare(string("==")) == 0)
+    {
+        case_num = equalss;
+    }
+    if(string(op).compare(string("!=")) == 0)
+    {
+        case_num = not_equals;
+    }
+    if(string(op).compare(string("<")) == 0)
+    {
+        case_num = smaller_then;
+    }
+    if(string(op).compare(string("<=")) == 0)
+    {
+        case_num = smaller_equal_then;
+    }
+    if(string(op).compare(string(">")) == 0)
+    {
+        case_num = bigger_then;
+    }
+    if(string(op).compare(string(">=")) == 0)
+    {
+        case_num = bigger_equal_then;
+    }
+
+    switch(case_num)
+    {
+        case equalss:
+            oper = "eq";
+            if(cond) {
+                t_type = "i8";
+            }
+            else {
+                t_type = "i32";
+            }
+            break;
+
+        case not_equals:
+            oper = "ne";
+            if(cond) {
+                t_type = "i8";
+            }
+            else {
+                t_type = "i32";
+            }
+            break;
+
+        case smaller_then:
+            if(cond) {
+                t_type = "i8";
+                oper = "ult";
+            }
+            else {
+                t_type = "i32";
+                oper = "slt";
+            }
+            break;
+
+        case bigger_then:
+            if(cond) {
+                t_type = "i8";
+                oper = "ugt";
+            }
+            else {
+                t_type = "i32";
+                oper = "sgt";
+            }
+            break;
+
+        case smaller_equal_then:
+            if(cond) {
+                t_type = "i8";
+                oper = "ule";
+            }
+            else {
+                t_type = "i32";
+                oper = "sle";
+            }
+            break;
+
+        case bigger_equal_then:
+            if(cond) {
+                oper = "uge";
+                t_type = "i8";
+            }
+            else {
+                oper = "sge";
+                t_type = "i32";
+            }
+            break;
+
+        default:
+            break;
+
+    }
+
+    string tmpRg;
+    string blRg;
+    string tmp;
+
+    if(string(leftType).compare("BYTE") == 0 && string(rightType).compare("BYTE") != 0)
+    {
+        tmpRg = rAlc();
+        blRg = rAlc();
+        tmp = tmpRg;
+        tmp += " = zext i8 ";
+        tmp += leftType;
+        tmp += " to i32\n";
+        tmp += blRg;
+        tmp +=" = icmp ";
+        tmp += oper;
+        tmp += " i32 ";
+        tmp += tmpRg;
+        tmp += " , ";
+        tmp+= rightType;
+        tmp += "\n";
+
+    }
+
+    if(string(leftType).compare("BYTE") != 0 && string(rightType).compare("BYTE") == 0)
+    {
+        tmpRg = rAlc();
+        blRg = rAlc();
+        tmp = tmpRg;
+        tmp += " = zext i8 ";
+        tmp += rightType;
+        tmp += " to i32\n";
+        tmp += blRg;
+        tmp +=" = icmp ";
+        tmp += oper;
+        tmp += " i32 ";
+        tmp += tmpRg;
+        tmp += " , ";
+        tmp+= leftType;
+        tmp += "\n";
+    }
+    else
+    {
+        blRg = rAlc();
+        tmp += blRg;
+        tmp += " = icmp ";
+        tmp += oper;
+        tmp += " ";
+        tmp += left;
+        tmp += " , ";
+        tmp+= right;
+        tmp += "\n";
+    }
+    CodeBuffer::instance().emit(tmp);
+    tmp = "br i1 ";
+    tmp += blRg;
+    tmp += " , label @, label @\n";
+    unsigned short idx;
+    idx = CodeBuffer::instance().emit(tmp);
+
+    bpList * toRet = new bpList();
+    (*toRet)[0] = *(new pair<int, BranchLabelIndex>(idx, FIRST));
+    (*toRet)[1] = *(new pair<int, BranchLabelIndex>(idx, SECOND));
+
+    *list = toRet;
+
+}
+
+const char* emitBinaryHandler(int op, const char* left, const char* right, const char* leftType, const char* rightType)
+{
+    string tmp;
+    const char* opArr[4] = {"sdiv ", "mul ", "add ", "sub "};
+    if(string(leftType).compare("BYTE") != 0 && string(rightType).compare("BYTE") != 0) {
+        const char* rg = rAlc();
+        tmp += rg;
+        tmp += " = ";
+        tmp += opArr[op];
+        tmp += "i32 ";
+        tmp += left;
+        tmp += " , ";
+        tmp += right;
+        tmp += '\n';
+
+        CodeBuffer::instance().emit(tmp.c_str());
+
+        return rg;
+    }
+
+    if(string(left).compare("BYTE") == 0 && string(right).compare("BYTE") == 0)
+    {
+        const char* rg = rAlc();
+        tmp += rg;
+        tmp += " = ";
+        tmp += opArr[op];
+        tmp += "i8 ";
+        tmp += left;
+        tmp += " , ";
+        tmp += right;
+        tmp += '\n';
+
+        CodeBuffer::instance().emit(tmp.c_str());
+
+        return rg;
+    }
+
+    if(string(left).compare("BYTE") == 0)
+    {
+        const char* one = rAlc();
+        const char* rg = rAlc();
+        tmp = one;
+        tmp += "= zext i8 ";
+        tmp += left;
+        tmp += " to i32\n";
+        tmp += rg;
+        tmp += " = sub i32 ";
+        tmp += one;
+        tmp += " , ";
+        tmp += right;
+        tmp +="\n";
+        CodeBuffer::instance().emit(tmp);
+        return rg;
+    }
+
+    const char* two = rAlc();
+    const char* rg = rAlc();
+    tmp = two;
+    tmp += "= zext i8 ";
+    tmp += right;
+    tmp += " to i32 \n";
+
+    tmp += rg;
+    tmp += " = sub i32 ";
+    tmp += left;
+    tmp += " , ";
+    tmp += two;
+    tmp += "\n";
+
+    CodeBuffer::instance().emit(tmp);
+    return rg;
+
+}
+
+void ESbool(const char* rg,  string * toRet) // ammit sweach bul
+{
+    string tmp;
+    string reg;
+    reg = rAlc();
+    tmp = reg;
+    tmp += " = add i1 ";
+    tmp += rg;
+    tmp += " , 1\n";
+    CodeBuffer::instance().emit(tmp.c_str());
+    *toRet = reg;
+}
+
+void emitBinary(const char* op, const char* left, const char* right, const char* leftType, const char* rightType, const char ** ret)
+{
+    int opId;
+    string toret;
+
+    if(string(op).compare(string("/")) == 0)
+    {
+        opId = div;
+    }
+
+    if(string(op).compare(string("*")) == 0)
+    {
+        opId = mul;
+    }
+
+    if(string(op).compare(string("+")) == 0)
+    {
+        opId = plus;
+    }
+
+    if(string(op).compare(string("-")) == 0)
+    {
+        opId = minus;
+    }
+
+    toret = emitBinaryHandler(opId, left, right, leftType, rightType);
+    *ret = toret.c_str();
+}
+
+
